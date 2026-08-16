@@ -118,6 +118,11 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_stage_handoff(payload, expected_stage="stage2")
 
+    def test_search_design_validation_rejects_legacy_handoff(self):
+        payload = {"_meta": {"stage": "stage1", "profile": "coding", "model": "demo", "search_design": "hybrid_v1"}, "top_combos": []}
+        with self.assertRaises(ValueError):
+            validate_stage_handoff(payload, expected_stage="stage1", expected_profile="coding", expected_model="demo", expected_search_design="hybrid_v4")
+
     def test_language_scoped_stage_handoffs_are_distinct(self):
         spanish = stage_file("stage1", "custom_lang", "demo", "es")
         slovak = stage_file("stage1", "custom_lang", "demo", "sk")

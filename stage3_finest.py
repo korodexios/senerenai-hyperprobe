@@ -303,7 +303,8 @@ def main():
     for profile in profiles:
         stage2 = load_stage(
             args.stage2 or "stage2", profile, model, language=args.language,
-            expected_stage="stage2", required_keys=("top_combos", "narrowed_ranges"),
+            expected_stage="stage2", expected_search_design=SEARCH_DESIGN_VERSION,
+            required_keys=("top_combos", "narrowed_ranges"),
         )
         top = stage2.get("top_combos", [])
         if not top:

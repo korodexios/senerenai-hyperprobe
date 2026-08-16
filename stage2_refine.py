@@ -376,7 +376,7 @@ def main() -> None:
 
     model = args.model or pick_model()
     samples = args.samples if args.samples is not None else prompt_int("How many samples per combination?", default=STAGE2_DEFAULT_SAMPLES, hint="1 is the efficient default; use 2 for noisier models")
-    max_combos = args.max_combos if args.max_combos is not None else prompt_int("Maximum interaction candidates?", default=STAGE2_DEFAULT_MAX_COMBOS, hint="8 is the quality/cost default")
+    max_combos = args.max_combos if args.max_combos is not None else prompt_int("Maximum interaction candidates?", default=STAGE2_DEFAULT_MAX_COMBOS, hint="5 is the efficient interaction default")
     think_mode = args.think
     if not args.think and len(sys.argv) == 1:
         from common import prompt_yes_no
@@ -390,7 +390,11 @@ def main() -> None:
             ranges = parse_range_args(args.range)
             stage1_data = None
         else:
-            stage1_data = load_stage(args.stage1 or "stage1", profile, model, language=args.language, expected_stage="stage1", required_keys=("suggested_ranges", "top_combos"))
+            stage1_data = load_stage(
+                args.stage1 or "stage1", profile, model, language=args.language,
+                expected_stage="stage1", expected_search_design=SEARCH_DESIGN_VERSION,
+                required_keys=("suggested_ranges", "top_combos"),
+            )
             ranges = dict(stage1_data.get("suggested_ranges", {}))
         profile_started = time.time()
         run_stage2(profile, model, ranges, n_samples=samples, timeout=args.timeout, max_combos=max_combos, enable_thinking=think_mode, language=args.language, stage1_evidence=stage1_data)

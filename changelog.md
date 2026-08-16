@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.9.1 — 2026-08-16
+
+This patch prevents silent mixing of search methodologies across stages. Stage 2 now requires a matching `hybrid_v4` Stage 1 handoff, and Stage 3 requires a matching `hybrid_v4` Stage 2 handoff. Older handoffs are rejected with a clear provenance mismatch instead of producing a dashboard bucket containing only Stage 2 and Stage 3 records.
+
+
 ## 1.9.0 — 2026-08-16
 
 This efficiency release keeps Stage 1 broad and makes the later stages progressively narrower and more complex instead of simply increasing request volume.

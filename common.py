@@ -221,6 +221,7 @@ def save_stage(stage_name: str, profile: str, model: str, data: dict, language: 
     path = stage_file(stage_name, profile, model, language)
     payload = dict(data)
     supplied_meta = dict(payload.pop("_meta", {}))
+    search_design = payload.get("search_design") or supplied_meta.get("search_design")
     payload["_meta"] = {
         "schema_version": PROJECT_SCHEMA_VERSION,
         "stage": stage_name,
@@ -230,6 +231,8 @@ def save_stage(stage_name: str, profile: str, model: str, data: dict, language: 
         "saved_at": utc_now(),
         **supplied_meta,
     }
+    if search_design:
+        payload["_meta"]["search_design"] = search_design
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Saved stage results to {path}")
     return path
@@ -241,6 +244,7 @@ def validate_stage_handoff(
     expected_stage: str | None = None,
     expected_profile: str | None = None,
     expected_model: str | None = None,
+    expected_search_design: str | None = None,
     required_keys: tuple[str, ...] = (),
 ) -> None:
     """Reject a stale, mismatched, or incomplete downstream stage handoff."""
@@ -253,6 +257,7 @@ def validate_stage_handoff(
         "stage": expected_stage,
         "profile": expected_profile,
         "model": expected_model,
+        "search_design": expected_search_design,
     }
     for field, expected in checks.items():
         if expected is not None and meta.get(field) != expected:
@@ -271,6 +276,7 @@ def load_stage(
     *,
     language: str | None = None,
     expected_stage: str | None = None,
+    expected_search_design: str | None = None,
     required_keys: tuple[str, ...] = (),
 ) -> dict:
     """Load and validate a stage handoff from a path or inferred stage name."""
@@ -288,6 +294,7 @@ def load_stage(
         expected_stage=expected_stage,
         expected_profile=profile,
         expected_model=model,
+        expected_search_design=expected_search_design,
         required_keys=required_keys,
     )
     if language is not None and data.get("_meta", {}).get("language") != language:
