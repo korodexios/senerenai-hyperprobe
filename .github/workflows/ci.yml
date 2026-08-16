@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile
+        run: python -m compileall -q .
+      - name: Smoke checks
+        run: python smoke_check.py
+      - name: CLI checks
+        run: |
+          python stage1_coarse.py --help
+          python stage2_refine.py --help
+          python stage3_finest.py --help
