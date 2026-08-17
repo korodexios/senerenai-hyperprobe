@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.10.0 — 2026-08-16
+
+This release keeps the broad 33-combination Stage 1 design but avoids spending a second sample on every combination. All combinations receive one screening sample; when Stage 1 samples are set to 2, only the baseline and eight strongest first-pass combinations receive confirmation. The Stage 2 and Stage 3 narrowing strategy is unchanged, while total runtime is substantially reduced for multi-profile runs.
+
+| Area | Change |
+|---|---|
+| Stage 1 coverage | Retains all 33 quality-first combinations. |
+| Stage 1 confirmation | Adaptive second sample for nine informative combinations instead of every combination. |
+| Search design | Versioned as `hybrid_v5`; downstream stages require matching provenance. |
+| Runtime | Default all-profile Stage 1 drops from 858 calls to approximately 546 calls at the current prompt set. |
+
+
 ## 1.9.1 — 2026-08-16
 
 This patch prevents silent mixing of search methodologies across stages. Stage 2 now requires a matching `hybrid_v4` Stage 1 handoff, and Stage 3 requires a matching `hybrid_v4` Stage 2 handoff. Older handoffs are rejected with a clear provenance mismatch instead of producing a dashboard bucket containing only Stage 2 and Stage 3 records.

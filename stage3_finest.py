@@ -95,7 +95,8 @@ def local_drift_combos(base_params: dict, primary_pair: tuple[str, str] | None =
 def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
                n_samples: int = STAGE3_DEFAULT_SAMPLES, timeout: int = 180,
                top_n: int = STAGE3_DEFAULT_TOP_N, enable_thinking: bool = False,
-               language: str | None = None, primary_pair: tuple[str, str] | list[str] | None = None) -> dict:
+               language: str | None = None, primary_pair: tuple[str, str] | list[str] | None = None,
+               benchmark_id: str | None = None) -> dict:
     prompts = PROMPTS[profile]
     if language and profile == "custom_lang":
         prompts = [prompt for prompt in prompts if prompt.get("language") == language]
@@ -121,6 +122,7 @@ def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
         parameter_combinations=len(combos),
     )
     run_id = fingerprint(run_manifest)
+    benchmark_id = benchmark_id or run_id
     validation_kind = "unseen holdout prompts" if profile != "custom_lang" else "language-scoped validation prompts"
     pair_label = " × ".join(normalized_pair) if normalized_pair else "none"
     print(f"\n{'='*62}\n  🎯 STAGE 3 — HOLDOUT STABILITY VALIDATION — {profile.upper()}\n"
@@ -161,7 +163,7 @@ def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
             replies_per_prompt_hash[prompt["id"]][ph].append(reply)
 
         append_jsonl("stage3", profile, model, {
-            "run_id": run_id, "search_design": SEARCH_DESIGN_VERSION, "prompt_id": prompt["id"], "profile": profile, "language": prompt.get("language"), "param_hash": ph,
+            "run_id": run_id, "benchmark_id": benchmark_id, "search_design": SEARCH_DESIGN_VERSION, "prompt_id": prompt["id"], "profile": profile, "language": prompt.get("language"), "param_hash": ph,
             "params": params, "sample_idx": row["sample_idx"],
             "grade": {"weighted_score": round(score, 4), "dimensions": dims, "flags": flags},
             "elapsed": round(row["elapsed"], 2),
@@ -212,6 +214,7 @@ def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
 
     error_count = sum(failed_by_hash.values())
     data = {
+        "benchmark_id": benchmark_id,
         "run_manifest": run_manifest,
         "summary": {
             "attempted_calls": len(jobs),
@@ -230,24 +233,28 @@ def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
         "ranked": ranked[:15],
         "warnings": warnings,
     }
-    save_stage("stage3", profile, model, data, language=language)
+    save_stage("stage3", profile, model, data, language=language, benchmark_id=benchmark_id)
 
     if ranked:
         final = ranked[0]["params"]
         model_safe = model.replace("/", "_").replace("\\", "_")
         language_suffix = f"_{language}" if language else ""
-        final_file = RESULTS_DIR / f"final_preset_{profile}_{model_safe}{language_suffix}.json"
+        archive_file = RESULTS_DIR / f"final_preset_{profile}_{model_safe}_{benchmark_id}{language_suffix}.json"
+        latest_file = RESULTS_DIR / f"final_preset_{profile}_{model_safe}{language_suffix}.json"
         final_payload = {
             "search_design": SEARCH_DESIGN_VERSION,
+            "benchmark_id": benchmark_id,
             "sampling_parameters": final,
             "selection": ranked[0],
             "validation": data["validation"],
             "run_manifest": run_manifest,
             "warnings": warnings,
         }
-        with open(final_file, "w", encoding="utf-8") as f:
-            json.dump(final_payload, f, indent=2, ensure_ascii=False)
-        print(f"\n  ✅ FINAL PRESET for {profile}: {final_file}")
+        encoded = json.dumps(final_payload, indent=2, ensure_ascii=False)
+        archive_file.write_text(encoded, encoding="utf-8")
+        latest_file.write_text(encoded, encoding="utf-8")
+        print(f"\n  ✅ FINAL PRESET for {profile}: {archive_file}")
+        print(f"  Updated latest preset pointer: {latest_file}")
         print(json.dumps(final, indent=4))
 
     return data

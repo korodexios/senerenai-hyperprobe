@@ -124,6 +124,20 @@ python3 visualizer.py
 
 The stage scripts are intentionally separate. Stage 2 consumes the Stage 1 handoff, and Stage 3 consumes the Stage 2 handoff. Use `--think` when the target server supports a thinking-mode request extension.
 
+### Sequential runs and result identity
+
+Each Stage 1 run creates a stable `benchmark_id`. That identifier is carried into Stage 2 and Stage 3, including their JSONL records, stage handoffs, and final preset. The launcher also keeps a latest pointer for each `stage/profile/model/language` combination, so the simple sequence below works without additional prompts:
+
+```bash
+python3 02_run.py --workflow stage1 --profiles coding --model model-a
+python3 02_run.py --workflow stage2 --profiles coding --model model-a
+python3 02_run.py --workflow stage3 --profiles coding --model model-a
+```
+
+The immutable archive files contain the benchmark identifier, for example `stage1_coding_model-a_<benchmark_id>.json`. The shorter `stage1_coding_model-a.json` file is only the latest pointer used by the zero-prompt launcher. A later run for the same model creates a new archive instead of destroying the previous Stage 1, Stage 2, Stage 3, or final-preset archive. Different model IDs are also isolated by their model-specific paths. The dashboard may pool compatible JSONL records for analysis, but every record retains `benchmark_id`, `run_id`, model, profile, stage, language, and search-design provenance so future reporting can reconstruct which stages belong together.
+
+If several independent experiments use the same model and profile, run them as separate Stage 1 chains. Stage 2 and Stage 3 will continue the most recently completed Stage 1/Stage 2 chain through the latest pointer. Use the archived JSON handoff path with the standalone stage scripts when you intentionally want to continue an older chain rather than the newest one.
+
 ## The three-stage search
 
 ### Stage 1 — interpretable screening

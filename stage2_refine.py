@@ -208,6 +208,7 @@ def run_stage2(
         parameter_combinations=len(combos),
     )
     run_id = fingerprint(run_manifest)
+    benchmark_id = (stage1_evidence or {}).get("benchmark_id") or run_id
     print(
         f"\n{'=' * 62}\n  🔬 STAGE 2 — INTERACTION REFINEMENT — {profile.upper()}\n"
         f"  Strategy: {strategy['mode']} | Candidates: {len(combos)}\n"
@@ -261,6 +262,7 @@ def run_stage2(
             model,
             {
                 "run_id": run_id,
+                "benchmark_id": benchmark_id,
                 "search_design": SEARCH_DESIGN_VERSION,
                 "prompt_id": prompt["id"],
                 "profile": profile,
@@ -331,6 +333,7 @@ def run_stage2(
 
     error_count = sum(failed_by_hash.values())
     data = {
+        "benchmark_id": benchmark_id,
         "run_manifest": run_manifest,
         "summary": {
             "attempted_calls": len(jobs),
@@ -347,7 +350,7 @@ def run_stage2(
         "narrowed_ranges": narrowed,
         "warnings": warnings,
     }
-    save_stage("stage2", profile, model, data, language=language)
+    save_stage("stage2", profile, model, data, language=language, benchmark_id=benchmark_id)
     return data
 
 

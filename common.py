@@ -34,7 +34,7 @@ STAGES_DIR.mkdir(exist_ok=True)
 
 def utc_now() -> str:
     """Return a stable UTC timestamp suitable for result metadata."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 def canonical_json(value: Any) -> str:
@@ -212,30 +212,57 @@ def safe_model_name(model: str) -> str:
 
 
 def stage_file(stage_name: str, profile: str, model: str, language: str | None = None) -> Path:
+    """Return the latest-pointer path used by the zero-prompt launcher."""
     language_suffix = f"_{safe_model_name(language)}" if language else ""
     return STAGES_DIR / f"{stage_name}_{profile}_{safe_model_name(model)}{language_suffix}.json"
 
 
-def save_stage(stage_name: str, profile: str, model: str, data: dict, language: str | None = None) -> Path:
-    """Write a schema-versioned stage handoff with non-secret provenance metadata."""
-    path = stage_file(stage_name, profile, model, language)
+def archived_stage_file(
+    stage_name: str,
+    profile: str,
+    model: str,
+    benchmark_id: str,
+    language: str | None = None,
+) -> Path:
+    """Return an immutable archive path for one benchmark chain."""
+    language_suffix = f"_{safe_model_name(language)}" if language else ""
+    return STAGES_DIR / f"{stage_name}_{profile}_{safe_model_name(model)}_{safe_model_name(benchmark_id)}{language_suffix}.json"
+
+
+def save_stage(
+    stage_name: str,
+    profile: str,
+    model: str,
+    data: dict,
+    language: str | None = None,
+    benchmark_id: str | None = None,
+) -> Path:
+    """Write an immutable stage archive plus a latest pointer for zero-prompt continuation."""
     payload = dict(data)
     supplied_meta = dict(payload.pop("_meta", {}))
+    benchmark_id = benchmark_id or payload.get("benchmark_id") or supplied_meta.get("benchmark_id") or fingerprint({"stage": stage_name, "profile": profile, "model": model, "created_at": utc_now()})
     search_design = payload.get("search_design") or supplied_meta.get("search_design")
+    payload["benchmark_id"] = benchmark_id
     payload["_meta"] = {
         "schema_version": PROJECT_SCHEMA_VERSION,
         "stage": stage_name,
         "profile": profile,
         "model": model,
         "language": language,
+        "benchmark_id": benchmark_id,
         "saved_at": utc_now(),
         **supplied_meta,
     }
     if search_design:
         payload["_meta"]["search_design"] = search_design
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Saved stage results to {path}")
-    return path
+    archive = archived_stage_file(stage_name, profile, model, benchmark_id, language)
+    latest = stage_file(stage_name, profile, model, language)
+    encoded = json.dumps(payload, indent=2, ensure_ascii=False)
+    archive.write_text(encoded, encoding="utf-8")
+    latest.write_text(encoded, encoding="utf-8")
+    print(f"Saved stage archive to {archive}")
+    print(f"Updated latest {stage_name} pointer: {latest}")
+    return archive
 
 
 def validate_stage_handoff(

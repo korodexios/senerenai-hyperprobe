@@ -175,12 +175,15 @@ def run_stage1(
             raise ValueError(f"No custom-language prompts found for language: {language}")
     combos = STAGE1_COMBOS
 
+    # Adaptive budget: every combination gets one broad screening sample. If the
+    # caller requests two samples, only the baseline plus the eight strongest
+    # first-pass combinations receive the second confirmation sample.
     jobs = [
-        {"prompt": prompt, "params": params, "sample_idx": sample_idx, "design_role": design_role(params)}
+        {"prompt": prompt, "params": params, "sample_idx": 0, "design_role": design_role(params)}
         for prompt in prompts
         for params in combos
-        for sample_idx in range(n_samples)
     ]
+    confirmation_jobs: list[dict] = []
     run_manifest = build_run_manifest(
         stage="stage1",
         profile=profile,
@@ -196,7 +199,8 @@ def run_stage1(
         f"\n{'=' * 62}\n  🔎 STAGE 1 — INTERPRETABLE SCREENING — {profile.upper()}\n"
         f"  Design: {STAGE1_DESIGN_LABEL}\n"
         f"  Model: {model} | Prompts: {len(prompts)} | Combinations: {len(combos)} "
-        f"| Samples: {n_samples} | Total calls: {len(jobs)}\n{'=' * 62}"
+        f"| Samples: {n_samples} | Adaptive confirmation: {9 if n_samples > 1 else 0} "
+        f"| Planned calls: {len(jobs) + (len(prompts) * min(9, len(combos)) if n_samples > 1 else 0)}\n{'=' * 62}"
     )
     batch = run_batch(model, jobs, timeout=timeout, enable_thinking=enable_thinking)
 
@@ -227,6 +231,7 @@ def run_stage1(
             model,
             {
                 "run_id": run_id,
+                "benchmark_id": run_id,
                 "search_design": SEARCH_DESIGN_VERSION,
                 "prompt_id": prompt["id"],
                 "profile": profile,
@@ -242,6 +247,44 @@ def run_stage1(
         )
 
     main_effects, sensitivity, interaction_evidence, combo_stats = analyze_screening(combos, scores_by_hash)
+
+    if n_samples > 1 and combo_stats:
+        confirmation_hashes = {param_hash(STAGE1_BASELINE)}
+        confirmation_hashes.update(item["param_hash"] for item in combo_stats[:8])
+        confirmation_hashes = set(list(confirmation_hashes)[: min(9, len(combos))])
+        confirmation_jobs = [
+            {"prompt": prompt, "params": params, "sample_idx": 1, "design_role": design_role(params)}
+            for prompt in prompts
+            for params in combos
+            if param_hash(params) in confirmation_hashes
+        ]
+        print(f"\\n  🔁 Adaptive confirmation: repeating {len(confirmation_hashes)} informative combinations ({len(confirmation_jobs)} calls)")
+        confirmation_batch = run_batch(model, confirmation_jobs, timeout=timeout, enable_thinking=enable_thinking)
+        for row in confirmation_batch:
+            prompt, params, result = row["prompt"], row["params"], row["result"]
+            ph = param_hash(params)
+            if "error" in result:
+                score, reply, dimensions, flags = 0.0, "", {}, [result["error"]]
+                failed_by_hash[ph] += 1
+            else:
+                grader = get_grader(profile, prompt)
+                reply = extract_clean_reply(result["reply"])
+                previous = replies_per_prompt_hash[prompt["id"]][ph]
+                grade = grader(reply, prompt, prev_replies=previous) if profile in ("creative", "roleplay", "custom_lang") else grader(reply, prompt)
+                score, dimensions, flags = grade.weighted_score, grade.dimensions, grade.flags
+                scores_by_hash[ph].append(score)
+                elapsed_by_hash[ph].append(row.get("elapsed", 0.0))
+                replies_per_prompt_hash[prompt["id"]][ph].append(reply)
+            append_jsonl("stage1", profile, model, {
+                "run_id": run_id, "benchmark_id": run_id, "search_design": SEARCH_DESIGN_VERSION,
+                "prompt_id": prompt["id"], "profile": profile, "language": prompt.get("language"),
+                "param_hash": ph, "params": params, "design_role": row["design_role"],
+                "sample_idx": row["sample_idx"],
+                "grade": {"weighted_score": round(score, 4), "dimensions": dimensions, "flags": flags},
+                "elapsed": round(row["elapsed"], 2), "reply_preview": reply[:300].replace("\\n", " "),
+            })
+        main_effects, sensitivity, interaction_evidence, combo_stats = analyze_screening(combos, scores_by_hash)
+
     if not combo_stats:
         raise RuntimeError("Stage 1 received no successful model responses; inspect the API errors before running Stage 2.")
 
@@ -286,18 +329,20 @@ def run_stage1(
 
     error_count = sum(failed_by_hash.values())
     data = {
+        "benchmark_id": run_id,
         "run_manifest": run_manifest,
         "summary": {
-            "attempted_calls": len(jobs),
-            "successful_calls": len(jobs) - error_count,
+            "attempted_calls": len(jobs) + len(confirmation_jobs),
+            "successful_calls": len(jobs) + len(confirmation_jobs) - error_count,
             "failed_calls": error_count,
-            "failure_rate": round(error_count / max(len(jobs), 1), 4),
+            "failure_rate": round(error_count / max(len(jobs) + len(confirmation_jobs), 1), 4),
         },
         "design": {
             "version": SEARCH_DESIGN_VERSION,
             "name": STAGE1_DESIGN_LABEL,
             "baseline": STAGE1_BASELINE,
             "combination_count": len(combos),
+            "adaptive_confirmation_count": min(9, len(combos)) if n_samples > 1 else 0,
             "main_effect_parameters": list(BIG_FOUR),
             "interaction_pairs": list(STAGE1_INTERACTION_PAIR_LABELS),
         },
@@ -309,7 +354,7 @@ def run_stage1(
         "top_combos": combo_stats[:10],
         "warnings": warnings,
     }
-    save_stage("stage1", profile, model, data, language=language)
+    save_stage("stage1", profile, model, data, language=language, benchmark_id=run_id)
     return data
 
 
@@ -321,7 +366,7 @@ def main() -> None:
     parser.add_argument("--language", help="Restrict custom_lang to one language code, for example en, es, zh, or sk.")
     parser.add_argument("--all", action="store_true", help="Run sequentially for all profiles")
     parser.add_argument("--model", "-m", default=None, help="Model ID. If omitted, an interactive model picker is used.")
-    parser.add_argument("--samples", type=int, default=None, help="Samples per combination; 2 is the reliable default.")
+    parser.add_argument("--samples", type=int, default=None, help="Requested samples; with 2, only nine informative combinations receive confirmation.")
     parser.add_argument("--think", action="store_true", help="Enable thinking mode (Qwen-compatible endpoints).")
     parser.add_argument("--timeout", "-t", type=int, default=180)
     args = parser.parse_args()

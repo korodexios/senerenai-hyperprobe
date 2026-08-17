@@ -23,7 +23,26 @@ PHASE_LABELS = {
 
 
 def model_safe_name(model: str) -> str:
+    """Create a filesystem-safe name from a human-facing model label."""
     return model.replace("/", "_").replace("\\", "_")
+
+
+def split_display_model(model: str) -> tuple[str, str | None]:
+    """Separate the model ID from the optional human-facing benchmark label."""
+    marker = " ["
+    if marker in model and model.endswith("]"):
+        base, label = model.rsplit(marker, 1)
+        return base, label[:-1]
+    return model, None
+
+
+def dashboard_filename(model: str) -> str:
+    """Return a clean dashboard filename with no internal search-design identifier."""
+    base, label = split_display_model(model)
+    suffix = ""
+    if label:
+        suffix = "_" + model_safe_name(label.lower()).replace(" ", "-")
+    return f"dashboard_{model_safe_name(base)}{suffix}.html"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -54,16 +73,25 @@ def load_all_data() -> list[dict]:
 
 
 def benchmark_variant(record: dict) -> str:
-    """Return a display-safe evidence variant; old records are explicitly legacy."""
-    return str(record.get("search_design") or "legacy")
+    """Return a human-friendly label while keeping internal variants separate."""
+    internal = str(record.get("search_design") or "legacy")
+    labels = {
+        "legacy": "Older results",
+        "hybrid_v1": "Earlier benchmark",
+        "hybrid_v4": "Previous benchmark",
+        "hybrid_v5": "Current benchmark",
+    }
+    return labels.get(internal, "Previous benchmark" if internal.startswith("hybrid_") else "Older results")
 
 
 def group_by_model(records: list[dict]) -> dict:
-    """Keep records from different search methodologies out of one ranking."""
+    """Keep methodologies separate, but hide the distinction for a single-set dashboard."""
     by_model = defaultdict(list)
+    variants = {benchmark_variant(record) for record in records}
+    show_variant = len(variants) > 1
     for record in records:
         model = record.get("model", "unknown_model")
-        label = f"{model} [{benchmark_variant(record)}]"
+        label = f"{model} [{benchmark_variant(record)}]" if show_variant else model
         by_model[label].append(record)
     return by_model
 
@@ -100,6 +128,8 @@ def run_deep_analysis(records: list[dict]) -> dict:
     language_scores = defaultdict(list)
     run_record_counts = defaultdict(int)
     failed_records_by_run = defaultdict(int)
+    run_details = {}
+    run_sequence = 0
 
     # Degeneration tracking: per combination, how often did a degeneration flag fire?
     combo_degen_hits = defaultdict(int)
@@ -122,12 +152,25 @@ def run_deep_analysis(records: list[dict]) -> dict:
         flags = r["grade"].get("flags", [])
         language = r.get("language")
         run_id = r.get("run_id", "legacy-record")
+        run_key = r.get("benchmark_id") or run_id
+        if run_key not in run_details:
+            run_sequence += 1
+            run_details[run_key] = {
+                "label": f"Benchmark run {run_sequence}" if r.get("benchmark_id") else f"Legacy run {run_sequence}",
+                "benchmark_id": r.get("benchmark_id"),
+                "run_ids": set(),
+                "phases": set(),
+                "profiles": set(),
+            }
+        run_details[run_key]["run_ids"].add(str(run_id))
+        run_details[run_key]["phases"].add(str(phase))
+        run_details[run_key]["profiles"].add(str(prof))
 
         phases_seen.add(phase)
-        run_record_counts[run_id] += 1
+        run_record_counts[run_key] += 1
         is_failed = not r["grade"].get("dimensions")
         if is_failed:
-            failed_records_by_run[run_id] += 1
+            failed_records_by_run[run_key] += 1
             # Keep failed calls visible in run-integrity diagnostics, but do not
             # let zero-score error records contaminate rankings, presets,
             # language means, parameter sensitivity, or degeneration rates.
@@ -171,6 +214,7 @@ def run_deep_analysis(records: list[dict]) -> dict:
         "language_scores": language_scores,
         "run_record_counts": run_record_counts,
         "failed_records_by_run": failed_records_by_run,
+        "run_details": run_details,
         "combo_degen_hits": combo_degen_hits,
         "combo_degen_total": combo_degen_total,
         "combo_degen_examples": combo_degen_examples,
@@ -324,8 +368,8 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .bg-gray-800 { background: #1f2937; } .text-gray-300 { color: #d1d5db; }
 .text-green-400 { color: var(--success); } .text-yellow-400 { color: var(--warning); } .text-red-400 { color: var(--danger); }
 for { background: #0b0f19; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 12px; color: #e2e8f0; margin: 8px 0; }
-.degen-bar-track { background: #0b0f19; border-radius: 4px; overflow: hidden; height: 10px; width: 120px; display: inline-block; vertical-align: middle; }
-.degen-bar-fill { background: var(--danger); height: 100%; }
+.degen-bar-track { background: #020617; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; height: 10px; width: 120px; display: inline-block; vertical-align: middle; }
+.degen-bar-fill { background: var(--danger); height: 100%; min-width: 2px; display: block; }
 .empty-note { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
 """
 
@@ -388,8 +432,8 @@ function sortTable(tableId, colIdx, numeric) {
 
 def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     DASH_DIR.mkdir(parents=True, exist_ok=True)
-    model_safe = model_safe_name(model)
-    html_file = DASH_DIR / f"dashboard_{model_safe}.html"
+    base_model, variant_label = split_display_model(model)
+    html_file = DASH_DIR / dashboard_filename(model)
 
     analysis = run_deep_analysis(records)
     presets = generate_specialized_presets(analysis)
@@ -408,6 +452,7 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     language_scores = analysis["language_scores"]
     run_record_counts = analysis["run_record_counts"]
     failed_records_by_run = analysis["failed_records_by_run"]
+    run_details = analysis["run_details"]
 
     profiles_present = sorted({p for phase in bphs for p in bphs[phase]})
     phases_present = sorted(analysis["phases_seen"],
@@ -420,12 +465,18 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     avg_latency = round(sum(all_elapsed_flat) / len(all_elapsed_flat), 1) if all_elapsed_flat else 0.0
     run_quality_rows = [
         {
-            "run_id": run_id,
+            "label": run_details[run_key]["label"],
+            "benchmark_id": run_details[run_key].get("benchmark_id"),
+            "details": (
+                f"Stages: {', '.join(sorted(run_details[run_key]['phases']))}; "
+                f"Profiles: {', '.join(sorted(run_details[run_key]['profiles']))}; "
+                f"Internal IDs: {', '.join(sorted(run_details[run_key]['run_ids']))}"
+            ),
             "records": count,
-            "failures": failed_records_by_run.get(run_id, 0),
-            "failure_rate": failed_records_by_run.get(run_id, 0) / max(count, 1),
+            "failures": failed_records_by_run.get(run_key, 0),
+            "failure_rate": failed_records_by_run.get(run_key, 0) / max(count, 1),
         }
-        for run_id, count in run_record_counts.items()
+        for run_key, count in run_record_counts.items()
     ]
     run_quality_rows.sort(key=lambda row: (row["failure_rate"], -row["records"]))
     language_rows = [
@@ -454,7 +505,7 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
 </head>
 <body>
 <div class="header">
-    <h1>🔬 {model}</h1>
+    <h1>🔬 {base_model}{f' — {variant_label}' if variant_label else ''}</h1>
     <div>
         <a href="index.html">← back to model list</a> &nbsp;·&nbsp;
         <span class="badge" style="background:var(--primary); color:#000;">{total_samples} records</span>
@@ -512,10 +563,10 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     if run_quality_rows:
         html.append('<div class="section-title">🧪 Run quality and coverage</div>')
         html.append('<div class="grid-2">')
-        html.append('<div class="card"><h3>Run integrity</h3><table><thead><tr><th>Run ID</th><th>Records</th><th>Failures</th><th>Failure rate</th></tr></thead><tbody>')
+        html.append('<div class="card"><h3>Run integrity</h3><div class="empty-note">Each row is one benchmark chain. Stage 1, Stage 2, and Stage 3 from the same chain are grouped together. Hover over a run label to inspect technical provenance.</div><table><thead><tr><th>Benchmark run</th><th>Records</th><th>Failures</th><th>Failure rate</th></tr></thead><tbody>')
         for row in run_quality_rows:
             html.append(
-                f"<tr><td><code>{escape(str(row['run_id']))}</code></td>"
+                f'<tr><td title="{escape(row["details"])}"><b>{escape(row["label"])}</b><br><small style="color:var(--text-muted);">{escape(row["benchmark_id"] or "legacy result set")}</small></td>'
                 f"<td>{row['records']}</td><td>{row['failures']}</td>"
                 f"<td>{row['failure_rate']:.1%}</td></tr>"
             )
@@ -599,7 +650,7 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
             html.append(f'<table id="{table_id}"><thead><tr>'
                         f'<th onclick="sortTable(\'{table_id}\',0,true)">#</th>'
                         f'<th onclick="sortTable(\'{table_id}\',1,true)">Score</th>'
-                        f'<th onclick="sortTable(\'{table_id}\',2,true)">Latencia</th>'
+                        f'<th onclick="sortTable(\'{table_id}\',2,true)">Latency</th>'
                         f'<th>Parameters</th><th>Dimensions</th></tr></thead><tbody>')
             for i2, c in enumerate(combos[:15]):
                 html.append(f'<tr><td>#{i2+1}</td>'
@@ -628,8 +679,8 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     degen_rows.sort(reverse=True)
     if degen_rows:
         html.append('<table id="table-degen"><thead><tr>'
-                    '<th onclick="sortTable(\'table-degen\',0,true)">Miera</th>'
-                    '<th>Hits</th><th>Parameters</th><th>Example flagu</th></tr></thead><tbody>')
+                    '<th onclick="sortTable(\'table-degen\',0,true)">Rate</th>'
+                    '<th>Hits</th><th>Parameters</th><th>Example flag</th></tr></thead><tbody>')
         for rate, hits, total, ph in degen_rows[:25]:
             pct = round(rate * 100)
             examples = ", ".join(degen_examples.get(ph, [])[:2])
@@ -648,7 +699,7 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     for p_name in ["temperature", "min_p", "top_p", "repetition_penalty"]:
         if p_name not in p_imp:
             continue
-        html.append(f'<div class="card" style="margin-bottom:20px;"><h3>Vplyv parametra: {p_name}</h3>'
+        html.append(f'<div class="card" style="margin-bottom:20px;"><h3>Parameter impact: {p_name}</h3>'
                     f'<table><tr><th>Value</th><th>Average score</th><th>Samples</th><th>Dimensions</th></tr>')
         for val in sorted(p_imp[p_name].keys()):
             st = calculate_stats(p_imp[p_name][val])

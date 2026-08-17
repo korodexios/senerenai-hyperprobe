@@ -82,8 +82,8 @@ def _stage1_design() -> list[dict[str, float]]:
 
 
 STAGE1_COMBOS = _stage1_design()
-STAGE1_DESIGN_LABEL = "quality-first baseline + dense one-factor sweeps + three targeted pair interactions"
-SEARCH_DESIGN_VERSION = "hybrid_v4"
+STAGE1_DESIGN_LABEL = "quality-first 33-combination screen + adaptive confirmation of informative candidates"
+SEARCH_DESIGN_VERSION = "hybrid_v5"
 STAGE_GRID_STEPS = 3
 STAGE2_DEFAULT_MAX_COMBOS = 5
 STAGE2_DEFAULT_SAMPLES = 1

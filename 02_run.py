@@ -181,6 +181,7 @@ def run_selected(
                         n_samples=settings["stage3_samples"], top_n=settings["stage3_top_n"],
                         enable_thinking=enable_thinking, language=selected_language,
                         primary_pair=handoff.get("search_strategy", {}).get("primary_interaction"),
+                        benchmark_id=handoff.get("benchmark_id"),
                     )
                 elif workflow == "full":
                     stage1 = runtime["run_stage1"](
@@ -199,6 +200,7 @@ def run_selected(
                         n_samples=settings["stage3_samples"], top_n=settings["stage3_top_n"],
                         enable_thinking=enable_thinking, language=selected_language,
                         primary_pair=stage2.get("search_strategy", {}).get("primary_interaction"),
+                        benchmark_id=stage2.get("benchmark_id"),
                     )
                 else:
                     raise ValueError(f"Unsupported workflow: {workflow}")
