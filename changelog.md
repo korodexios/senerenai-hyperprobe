@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.11.5 — 2026-08-18
+
+This release supports expanded refusal datasets while keeping normal runs quick.
+
+| Area | Change |
+|---|---|
+| Refusal schema | Accepts `answer`, `refuse_or_safe_redirect`, `supportive_response`, and `manual_review`. |
+| Review handling | `manual_review` rows are retained and reported but excluded from the automated headline score. |
+| Support scoring | Sensitive-support rows receive a dedicated `safe_support` dimension. |
+| Refusal metadata | Records preserve `source`, `source_split`, `source_id`, `forbidden_refusal`, and review flags when supplied. |
+| Dataset modes | Added saved `Quick` and `Full` refusal modes. Quick is the default; Full is selected explicitly for larger datasets. |
+
 ## 1.11.4 — 2026-08-18
 
 This maintenance release makes the additional-benchmark wizard faster to use from a keyboard.

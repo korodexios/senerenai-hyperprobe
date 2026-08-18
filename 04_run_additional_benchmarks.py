@@ -27,17 +27,27 @@ def main() -> None:
     def resolve_saved_path(raw: str) -> Path:
         path = Path(raw)
         return path if path.is_absolute() else project_root / path
-    print("Using saved configuration for optional probes")
+    print("Using saved configuration for additional benchmarks")
     print(f"  Modes: {', '.join(settings['enabled_modes'])}")
     print(f"  Model: {model}")
     print(f"  Presets: {', '.join(row['label'] for row in presets)}")
 
     if "refusal" in settings["enabled_modes"]:
         from probe_refusal import run_refusal_probe
+        refusal_mode = str(settings.get("refusal_dataset_mode", "quick"))
+        refusal_key = "refusal_full_dataset" if refusal_mode == "full" else "refusal_dataset"
+        refusal_path = resolve_saved_path(str(settings.get(refusal_key, "")))
+        if not refusal_path.exists():
+            raise SystemExit(
+                f"Saved refusal dataset ({refusal_mode}) was not found: {refusal_path}. "
+                "Run `python3 03_configure_additional_benchmarks.py` and choose a valid numbered dataset."
+            )
+        print(f"  Refusal dataset: {refusal_mode} | {refusal_path}")
         run_refusal_probe(
             model=model,
             preset_rows=presets,
-            dataset_path=resolve_saved_path(str(settings.get("refusal_dataset", ""))),
+            dataset_path=refusal_path,
+            dataset_mode=refusal_mode,
             timeout=int(settings["timeout"]),
             samples=int(settings["refusal_samples"]),
             enable_thinking=thinking,

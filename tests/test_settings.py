@@ -106,6 +106,12 @@ class SettingsTests(unittest.TestCase):
             loaded = load_probe_settings(path)
         self.assertEqual(loaded["enabled_modes"], ["refusal", "niah"])
         self.assertEqual(loaded["niah_context_sizes"], [4000, 16000])
+        self.assertEqual(loaded["refusal_dataset_mode"], "quick")
+        full = dict(DEFAULT_PROBE_SETTINGS)
+        full["refusal_dataset_mode"] = "full"
+        full["refusal_full_dataset"] = "datasets/local/expanded.jsonl"
+        save_probe_settings(full, path)
+        self.assertEqual(load_probe_settings(path)["refusal_dataset_mode"], "full")
         invalid = dict(DEFAULT_PROBE_SETTINGS)
         invalid["enabled_modes"] = ["niah"]
         invalid["niah_corpus"] = ""

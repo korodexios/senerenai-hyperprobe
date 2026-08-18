@@ -8,8 +8,9 @@ from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent
 PROBE_SETTINGS_PATH = Path(os.getenv("HYPERPROBE_PROBE_SETTINGS_FILE", ROOT_DIR / "hyperprobe.probes.local.json"))
-PROBE_SETTINGS_SCHEMA_VERSION = 1
+PROBE_SETTINGS_SCHEMA_VERSION = 2
 PROBE_MODES = ("refusal", "niah")
+REFUSAL_DATASET_MODES = ("quick", "full")
 PRESET_MODES = ("baseline", "final", "compare", "mini-sweep", "manual")
 DEFAULT_NIAH_CONTEXT_SIZES = [4000, 16000, 32000]
 DEFAULT_NIAH_DEPTHS = [10, 50, 90]
@@ -21,7 +22,9 @@ DEFAULT_PROBE_SETTINGS: dict[str, Any] = {
     "manual_preset": "",
     "preset_profile": "roleplay",
     "language": "",
+    "refusal_dataset_mode": "quick",
     "refusal_dataset": "datasets/refusal/refusal_safe_v1.jsonl",
+    "refusal_full_dataset": "datasets/local/uncensored-test-dataset.jsonl",
     "niah_corpus": "",
     "niah_context_sizes": DEFAULT_NIAH_CONTEXT_SIZES,
     "niah_depths": DEFAULT_NIAH_DEPTHS,
@@ -47,7 +50,11 @@ def _merge(raw: dict[str, Any] | None) -> dict[str, Any]:
     merged["preset"] = str(merged.get("preset", "compare")) if merged.get("preset") in PRESET_MODES else "compare"
     merged["preset_profile"] = str(merged.get("preset_profile", "roleplay"))
     merged["language"] = str(merged.get("language", "")).strip()
+    merged["refusal_dataset_mode"] = str(merged.get("refusal_dataset_mode", "quick")).lower()
+    if merged["refusal_dataset_mode"] not in REFUSAL_DATASET_MODES:
+        merged["refusal_dataset_mode"] = "quick"
     merged["refusal_dataset"] = str(merged.get("refusal_dataset", DEFAULT_PROBE_SETTINGS["refusal_dataset"])).strip()
+    merged["refusal_full_dataset"] = str(merged.get("refusal_full_dataset", DEFAULT_PROBE_SETTINGS["refusal_full_dataset"])).strip()
     merged["niah_corpus"] = str(merged.get("niah_corpus", "")).strip()
     for key, default, minimum, maximum in (
         ("niah_context_sizes", DEFAULT_NIAH_CONTEXT_SIZES, 256, 1_000_000),
@@ -83,6 +90,10 @@ def validate_probe_settings(settings: dict[str, Any]) -> list[str]:
         errors.append("enabled_modes must contain refusal and/or niah")
     if settings.get("preset") not in PRESET_MODES:
         errors.append("preset must be baseline, final, compare, mini-sweep, or manual")
+    if settings.get("refusal_dataset_mode") not in REFUSAL_DATASET_MODES:
+        errors.append("refusal_dataset_mode must be quick or full")
+    if "refusal" in settings.get("enabled_modes", []) and settings.get("refusal_dataset_mode") == "full" and not str(settings.get("refusal_full_dataset", "")).strip():
+        errors.append("refusal_full_dataset is required when refusal_dataset_mode is full")
     if settings.get("preset") == "manual" and not settings.get("manual_preset"):
         errors.append("manual_preset is required when preset is manual")
     if "niah" in settings.get("enabled_modes", []) and not str(settings.get("niah_corpus", "")).strip():

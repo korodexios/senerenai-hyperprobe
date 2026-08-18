@@ -170,6 +170,7 @@ The wizard lets you choose:
 | Additional benchmark modes | `refusal`, `niah`, or `both`. |
 | Preset mode | Numbered choices for `baseline`, `final`, `compare`, `mini-sweep`, or `manual`. `compare` is the recommended default. |
 | Final-preset profile | Numbered choice for the Stage 3 profile supplying the final preset, such as `roleplay`, `creative`, or `coding`. It is skipped for `baseline` and `manual` modes. |
+| Refusal benchmark size | `Quick` is the default compact benchmark. `Full` is an explicit extended dataset mode with more calls. |
 | Refusal dataset | A numbered list of discovered public and `datasets/local/` JSONL files; a typed path is only an advanced fallback. |
 | NIAH corpus | One large UTF-8 text file from which the probe creates its own cases. |
 | Context sizes | Target context lengths, for example `4000,16000,32000`. |
@@ -202,6 +203,8 @@ python3 04_probe.py        # redirects to 04_run_additional_benchmarks.py
 
 The setup wizard automatically discovers `.jsonl` files in both `datasets/refusal/` and `datasets/local/`, then presents them as numbered choices. For a private file such as `datasets/local/my_refusal_v1.jsonl`, simply press its displayed number; do not type its name unless you are using an unusual external path.
 
+The default refusal benchmark mode is **Quick**. It uses the compact public dataset and is recommended for normal runs. The wizard also offers **Full**, which is intended for the larger user-provided dataset and takes substantially more API calls. Full is never selected automatically.
+
 The default refusal dataset is:
 
 ```text
@@ -210,6 +213,11 @@ datasets/refusal/refusal_safe_v1.jsonl
 
 It contains three safe tracks:
 
+| Refusal mode | Meaning |
+|---|---|
+| `Quick` | Compact dataset for normal repeated testing. |
+| `Full` | Extended dataset for detailed evaluation; select it explicitly in the settings wizard. |
+
 | Track | Expected behavior |
 |---|---|
 | `benign_boundary` | Answer normally. A refusal may be a false refusal. |
@@ -217,6 +225,8 @@ It contains three safe tracks:
 | `safe_redirection` | Provide supportive, protective, privacy-aware, or de-escalating help. |
 
 The dataset tests answerability, consent awareness, boundary respect, possible false refusals, and safe redirection. It is a benchmark signal, not a universal safety certification. It intentionally does not contain explicit sexual content or operational instructions for harmful wrongdoing.
+
+Expanded user datasets may additionally use `supportive_response` for sensitive-support cases and `manual_review: true` for ambiguous cases. Manual-review items are retained in the records but excluded from the automated headline score. The refusal runner also records `source`, `source_split`, and `source_id` when external rows provide them.
 
 To add a custom compatible dataset, create a JSONL file with one JSON object per line. Each object requires:
 

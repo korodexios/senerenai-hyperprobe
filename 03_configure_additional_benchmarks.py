@@ -12,6 +12,7 @@ from typing import Any
 
 from probe_settings import (
     DEFAULT_NIAH_CONTEXT_SIZES,
+    REFUSAL_DATASET_MODES,
     DEFAULT_NIAH_DEPTHS,
     DEFAULT_PROBE_SETTINGS,
     PROBE_SETTINGS_PATH,
@@ -133,6 +134,15 @@ def relative_to_project(path: Path) -> str:
         return str(path)
 
 
+def choose_refusal_mode(current: str) -> str:
+    labels = [
+        "Quick — public compact dataset; recommended default",
+        "Full — extended dataset; more calls and more detailed coverage",
+    ]
+    default = REFUSAL_DATASET_MODES.index(current) if current in REFUSAL_DATASET_MODES else 0
+    return REFUSAL_DATASET_MODES[choose_number("Refusal benchmark size", labels, default)]
+
+
 def choose_refusal_dataset(current: str) -> str:
     datasets = discover_refusal_datasets()
     labels = [relative_to_project(path) for path in datasets]
@@ -231,7 +241,10 @@ def main() -> None:
         settings["manual_preset"] = prompt_manual_preset(str(current.get("manual_preset", "")))
 
     if "refusal" in settings["enabled_modes"]:
-        settings["refusal_dataset"] = choose_refusal_dataset(str(current.get("refusal_dataset", DEFAULT_PROBE_SETTINGS["refusal_dataset"])))
+        settings["refusal_dataset_mode"] = choose_refusal_mode(str(current.get("refusal_dataset_mode", "quick")))
+        dataset_key = "refusal_full_dataset" if settings["refusal_dataset_mode"] == "full" else "refusal_dataset"
+        current_dataset = str(current.get(dataset_key, DEFAULT_PROBE_SETTINGS[dataset_key]))
+        settings[dataset_key] = choose_refusal_dataset(current_dataset)
         settings["refusal_samples"] = choose_samples("Refusal samples per item", int(current.get("refusal_samples", 2)), 2)
 
     if "niah" in settings["enabled_modes"]:
@@ -261,7 +274,8 @@ def main() -> None:
     print(f"  Benchmarks:   {', '.join(settings['enabled_modes'])}")
     print(f"  Samplers:     {settings['preset']} ({settings['preset_profile']})")
     if "refusal" in settings["enabled_modes"]:
-        print(f"  Refusal:      {settings['refusal_dataset']} | {settings['refusal_samples']} samples/item")
+        refusal_key = "refusal_full_dataset" if settings.get("refusal_dataset_mode") == "full" else "refusal_dataset"
+        print(f"  Refusal:      {settings['refusal_dataset_mode']} | {settings[refusal_key]} | {settings['refusal_samples']} samples/item")
     if "niah" in settings["enabled_modes"]:
         print(f"  NIAH corpus:  {settings['niah_corpus']}")
         print(f"  NIAH matrix:  {settings['niah_context_sizes']} tokens × {settings['niah_depths']}% × {settings['niah_samples']} sample(s)")
