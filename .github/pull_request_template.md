@@ -7,8 +7,10 @@ Explain the change in simple terms and why it is useful.
 - [ ] `python3 -m compileall -q .`
 - [ ] `python3 -m unittest discover -s tests -p 'test_*.py' -q`
 - [ ] `python3 smoke_check.py`
-- [ ] `python3 01_setup.py --help`
-- [ ] `python3 02_run.py --help`
+- [ ] `python3 01_configure_sampler_benchmark.py --help`
+- [ ] `python3 02_run_sampler_benchmark.py --help`
+- [ ] `python3 03_configure_additional_benchmarks.py` was reviewed without saving local credentials
+- [ ] `python3 04_run_additional_benchmarks.py` was validated with saved probe settings or mocks
 - [ ] Documentation was updated if needed.
 
 ## Safety and privacy

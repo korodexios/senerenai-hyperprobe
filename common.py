@@ -143,10 +143,17 @@ def call_model(
             data = json.loads(response.read().decode("utf-8"))
         message = data["choices"][0].get("message", {})
         choice = data["choices"][0]
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        completion_tokens = usage.get("completion_tokens")
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_reported = isinstance(completion_tokens, (int, float))
+        prompt_reported = isinstance(prompt_tokens, (int, float))
         return {
             "reply": message.get("content", "") or "",
-            "tokens": data.get("usage", {}).get("completion_tokens", 0),
-            "prompt_tokens": data.get("usage", {}).get("prompt_tokens"),
+            "tokens": int(completion_tokens) if completion_reported else 0,
+            "completion_tokens_reported": completion_reported,
+            "prompt_tokens": int(prompt_tokens) if prompt_reported else None,
+            "prompt_tokens_reported": prompt_reported,
             "response_model": data.get("model", model),
             "finish_reason": choice.get("finish_reason"),
         }

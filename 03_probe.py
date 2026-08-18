@@ -24,9 +24,9 @@ def parse_int_csv(raw: str, *, label: str, minimum: int, maximum: int) -> tuple[
 def main() -> None:
     settings = load_settings()
     parser = argparse.ArgumentParser(
-        description="Run optional standalone Senerenai-HyperProbe refusal or NIAH diagnostics using saved settings."
+        description="Run a standalone Senerenai-HyperProbe refusal or NIAH benchmark using saved settings."
     )
-    parser.add_argument("--mode", required=True, choices=("refusal", "niah"), help="Separate diagnostic mode; it does not run or alter Stage 1–3.")
+    parser.add_argument("--mode", required=True, choices=("refusal", "niah"), help="Standalone benchmark mode; it does not run or alter Stage 1–3.")
     parser.add_argument("--model", default=str(settings.get("model", "")), help="Temporary model override; default is the saved model.")
     parser.add_argument("--preset", choices=("baseline", "final", "compare", "mini-sweep", "manual"), default="compare", help="Sampling preset source; compare = baseline plus saved Stage 3 final preset.")
     parser.add_argument("--preset-profile", default="roleplay", choices=("coding", "agent_tools", "creative", "roleplay", "custom_lang"), help="Profile whose final Stage 3 preset is reused when applicable.")
@@ -44,7 +44,7 @@ def main() -> None:
 
     model = str(args.model).strip()
     if not model:
-        parser.error("No saved model ID. Run `python3 01_setup.py --edit` or provide --model.")
+        parser.error("No saved model ID. Run `python3 01_configure_sampler_benchmark.py --edit` or provide --model.")
     if args.samples is not None and args.samples < 1:
         parser.error("--samples must be a positive integer.")
 
@@ -56,7 +56,7 @@ def main() -> None:
         manual_preset=args.manual_preset,
     )
     enable_thinking = True if args.think else bool(settings.get("thinking", False))
-    print("Using saved configuration for an optional probe")
+    print("Using saved configuration for a standalone additional benchmark")
     print(f"  Mode: {args.mode} | Model: {model} | Preset mode: {args.preset} | Presets: {', '.join(row['label'] for row in presets)}")
 
     if args.mode == "refusal":

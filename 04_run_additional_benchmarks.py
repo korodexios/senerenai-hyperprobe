@@ -1,14 +1,19 @@
 """Zero-prompt runner for the optional refusal and NIAH probes."""
 from __future__ import annotations
 
+import argparse
+import time
 from pathlib import Path
 
+from common import format_duration, utc_now
 from settings import load_settings
 from probe_settings import load_probe_settings
 from probe_utils import select_presets
 
 
 def main() -> None:
+    workflow_started_at = utc_now()
+    workflow_started_monotonic = time.monotonic()
     settings = load_probe_settings()
     shared = load_settings()
     model = str(shared.get("model", "")).strip()
@@ -32,6 +37,7 @@ def main() -> None:
     print(f"  Model: {model}")
     print(f"  Presets: {', '.join(row['label'] for row in presets)}")
 
+    probe_started_monotonic = time.monotonic()
     if "refusal" in settings["enabled_modes"]:
         from probe_refusal import run_refusal_probe
         refusal_mode = str(settings.get("refusal_dataset_mode", "quick"))
@@ -69,11 +75,37 @@ def main() -> None:
             enable_thinking=thinking,
         )
 
+    probe_elapsed = time.monotonic() - probe_started_monotonic
+    dashboard_elapsed = 0.0
     if settings.get("regenerate_dashboard", True):
         print("\nGenerating the dashboard from all available result records...")
+        dashboard_started_monotonic = time.monotonic()
         import visualizer
         visualizer.main()
+        dashboard_elapsed = time.monotonic() - dashboard_started_monotonic
+    workflow_elapsed = time.monotonic() - workflow_started_monotonic
+    print("\n" + "=" * 70)
+    print("  ADDITIONAL BENCHMARKS — WORKFLOW SUMMARY")
+    print(f"  Started (UTC): {workflow_started_at}")
+    print(f"  Finished (UTC): {utc_now()}")
+    print(f"  Probe execution elapsed: {format_duration(probe_elapsed)}")
+    if settings.get("regenerate_dashboard", True):
+        print(f"  Dashboard generation elapsed: {format_duration(dashboard_elapsed)}")
+    print(f"  Total additional workflow elapsed: {format_duration(workflow_elapsed)}")
+    print("=" * 70)
+
+
+def cli() -> None:
+    """Provide standard command help without changing zero-prompt execution."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the saved refusal/companion and NIAH benchmark configuration. "
+            "Configure it first with 03_configure_additional_benchmarks.py."
+        )
+    )
+    parser.parse_args()
+    main()
 
 
 if __name__ == "__main__":
-    main()
+    cli()

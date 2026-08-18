@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from common import RESULTS_DIR, fingerprint, safe_model_name, utc_now
+from common import RESULTS_DIR, fingerprint, format_duration, safe_model_name, utc_now
 
 PROBE_RESULTS_DIR = RESULTS_DIR / "probes"
 PROBE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -120,3 +120,123 @@ def save_probe_summary(mode: str, model: str, probe_id: str, payload: dict) -> P
 
 def mean(values: list[float]) -> float:
     return round(sum(values) / len(values), 4) if values else 0.0
+
+
+def _percentile(values: list[float], percentile: float) -> float | None:
+    """Return a linearly interpolated percentile without external dependencies."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = (len(ordered) - 1) * percentile
+    lower = int(index)
+    upper = min(lower + 1, len(ordered) - 1)
+    fraction = index - lower
+    return round(ordered[lower] + (ordered[upper] - ordered[lower]) * fraction, 3)
+
+
+def _token_summary(rows: list[dict], value_key: str, reported_key: str) -> dict[str, Any]:
+    """Summarize only tokens explicitly returned by the provider, never estimates."""
+    values: list[int] = []
+    for row in rows:
+        result = row.get("result", {})
+        value = result.get(value_key)
+        explicit = result.get(reported_key)
+        # Older local mock records may lack the availability flag. A positive
+        # value remains usable; zero with no flag is correctly treated as unknown.
+        reported = bool(explicit) if explicit is not None else isinstance(value, (int, float)) and value > 0
+        if reported and isinstance(value, (int, float)):
+            values.append(int(value))
+    attempted = len(rows)
+    if not values:
+        return {
+            "status": "not_reported_by_api",
+            "reported_calls": 0,
+            "missing_calls": attempted,
+            "total": None,
+            "mean_per_reported_call": None,
+        }
+    return {
+        "status": "partial" if len(values) < attempted else "reported",
+        "reported_calls": len(values),
+        "missing_calls": attempted - len(values),
+        "total": sum(values),
+        "mean_per_reported_call": round(sum(values) / len(values), 2),
+    }
+
+
+def build_probe_run_statistics(
+    rows: list[dict],
+    *,
+    started_at: str,
+    finished_at: str,
+    wall_elapsed_seconds: float,
+) -> dict[str, Any]:
+    """Create one honest telemetry summary for refusal or NIAH probe runs."""
+    attempted = len(rows)
+    failed = sum(1 for row in rows if "error" in row.get("result", {}))
+    succeeded = attempted - failed
+    latencies = [float(row.get("elapsed", 0.0) or 0.0) for row in rows if float(row.get("elapsed", 0.0) or 0.0) >= 0]
+    latency = {
+        "mean": round(sum(latencies) / len(latencies), 3) if latencies else None,
+        "p50": _percentile(latencies, 0.50),
+        "p95": _percentile(latencies, 0.95),
+        "minimum": round(min(latencies), 3) if latencies else None,
+        "maximum": round(max(latencies), 3) if latencies else None,
+        "aggregate_request_seconds": round(sum(latencies), 3) if latencies else 0.0,
+    }
+    wall = max(float(wall_elapsed_seconds), 0.0)
+    return {
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "wall_elapsed_seconds": round(wall, 3),
+        "wall_elapsed_human": format_duration(wall),
+        "attempted_calls": attempted,
+        "successful_calls": succeeded,
+        "failed_calls": failed,
+        "success_rate": round(succeeded / attempted, 4) if attempted else 0.0,
+        "throughput_successful_calls_per_minute": round(succeeded / (wall / 60), 3) if wall >= 1.0 else None,
+        "request_latency_seconds": latency,
+        "completion_tokens": _token_summary(rows, "tokens", "completion_tokens_reported"),
+        "prompt_tokens": _token_summary(rows, "prompt_tokens", "prompt_tokens_reported"),
+    }
+
+
+def _display_token_summary(label: str, summary: dict[str, Any]) -> str:
+    if summary["status"] == "not_reported_by_api":
+        return f"  {label}: not reported by API"
+    missing = f"; {summary['missing_calls']} call(s) missing" if summary["missing_calls"] else ""
+    return (
+        f"  {label}: {summary['total']:,} total across {summary['reported_calls']} reported call(s) "
+        f"({summary['mean_per_reported_call']:.1f} average){missing}"
+    )
+
+
+def print_probe_run_statistics(title: str, statistics: dict[str, Any]) -> None:
+    """Print a compact, human-readable probe summary after a completed run."""
+    latency = statistics["request_latency_seconds"]
+    print("\n" + "=" * 70)
+    print(f"  {title} — RUN SUMMARY")
+    print(f"  Started (UTC): {statistics['started_at']}")
+    print(f"  Finished (UTC): {statistics['finished_at']}")
+    print(f"  Wall-clock elapsed: {statistics['wall_elapsed_human']}")
+    print(
+        f"  Calls: {statistics['attempted_calls']} attempted | {statistics['successful_calls']} successful | "
+        f"{statistics['failed_calls']} failed | {statistics['success_rate']:.1%} success"
+    )
+    throughput = statistics["throughput_successful_calls_per_minute"]
+    if throughput is not None:
+        print(f"  Throughput: {throughput:.2f} successful calls/minute")
+    if latency["mean"] is None:
+        print("  Request latency: no completed request timings")
+    else:
+        print(
+            f"  Request latency: mean {latency['mean']:.1f}s | p50 {latency['p50']:.1f}s | "
+            f"p95 {latency['p95']:.1f}s | max {latency['maximum']:.1f}s"
+        )
+        print(
+            f"  Aggregate request time: {format_duration(latency['aggregate_request_seconds'])} "
+            "(can exceed wall-clock time when requests run concurrently)"
+        )
+    print(_display_token_summary("Output tokens", statistics["completion_tokens"]))
+    print(_display_token_summary("Input tokens", statistics["prompt_tokens"]))
+    print("=" * 70)

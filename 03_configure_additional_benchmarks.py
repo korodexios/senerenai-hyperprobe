@@ -6,6 +6,7 @@ custom paths, unusual NIAH matrices, or manually supplied sampler parameters.
 """
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -283,5 +284,17 @@ def main() -> None:
     print("Next: python3 04_run_additional_benchmarks.py")
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    """Provide a non-interactive help path while preserving the numbered wizard."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Configure persistent refusal/companion and NIAH benchmark settings. "
+            "Run without options to open the number-first wizard."
+        )
+    )
+    parser.parse_args()
     main()
+
+
+if __name__ == "__main__":
+    cli()

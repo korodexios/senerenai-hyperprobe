@@ -1,5 +1,82 @@
 # Changelog
 
+## 1.11.11 — 2026-08-18
+
+This patch polishes the dashboard header and metadata presentation.
+
+| Area | Change |
+|---|---|
+| Header layout | Replaced loose flex wrapping with a structured two-row layout for the report title, subtitle, back link, and metadata. |
+| Long model names | Added stable full-width title wrapping without competing against the record, timing, latency, and stage badges. |
+| Metadata badges | Added consistent spacing, truncation, title tooltips for long stage lists, and responsive behavior below desktop width. |
+| Mobile behavior | Header metadata stacks cleanly on narrow screens and no longer overlaps the title or tabs. |
+| Tests | Added regression coverage for the structured header containers. |
+
+## 1.11.10 — 2026-08-18
+
+This focused dashboard cleanup removes the remaining duplicate technical stage dump.
+
+| Area | Change |
+|---|---|
+| Stage detail placement | Moved the remaining profile × Stage top-combination rows out of Technical details and into the dedicated Stage 1, Stage 2, and Stage 3 profile sub-tabs. |
+| Visual evidence | Detailed Stage rows now use colored rank badges, score bars, and per-dimension status badges instead of an uncolored text list. |
+| Technical tab | Retains only cross-stage provenance, coverage, multilingual diagnostics, and parameter sensitivity, with a clear pointer to the Stage tabs for combinations. |
+| Tests | Added a regression check ensuring the legacy uncolored stage dump does not return. |
+
+## 1.11.9 — 2026-08-18
+
+This patch restores the depth of sampler analysis while retaining the clearer high-level dashboard.
+
+| Area | Change |
+|---|---|
+| Stage navigation | Restored distinct primary tabs for Stage 1 screening, Stage 2 refinement, and Stage 3 stability. |
+| Final evidence | Overview now presents a Stage 3-first summary across all available profiles, with a visible fallback to the most advanced completed stage. |
+| Stage analytics | Each stage has an all-profiles score chart/table and profile-specific sub-tabs with ranked combinations, parameter badges, evidence counts, latency, and dimensions. |
+| Visual hierarchy | Restored stage-specific color accents and score bars so screening, refinement, and final stability evidence are easier to distinguish. |
+| Method integrity | Stage scores remain isolated; the dashboard does not pool Stage 1–3 averages into a misleading single ranking. |
+| Tests | Added regression coverage for Stage 1–3 primary tabs and the Stage 3 overview snapshot. |
+
+## 1.11.8 — 2026-08-18
+
+This patch gives Additional Benchmarks the same whole-run visibility expected from the Stage 1–3 workflow.
+
+| Area | Change |
+|---|---|
+| Whole-run timing | Refusal and NIAH now print UTC start/end times and actual wall-clock elapsed time. The Additional Benchmarks launcher also prints probe-only, dashboard-only, and total workflow elapsed time. |
+| Reliability | Probe archives report attempted, successful, failed, and success-rate counts. |
+| Latency | Summaries provide mean, p50, p95, minimum, maximum, and aggregate request time, with an explicit explanation for concurrent execution. |
+| Throughput | Reports successful calls per minute when the wall-clock duration is meaningful. |
+| Token telemetry | Reports input/output token totals only when the API returned them. Missing telemetry is labeled `not_reported_by_api`, never treated as zero. |
+| NIAH estimates | Separately reports a clearly labeled character-based estimated input total for constructed NIAH prompts. |
+| Tests | Added archived-statistics assertions for refusal and NIAH mock runs. |
+
+## 1.11.7 — 2026-08-18
+
+This patch makes refusal results auditable at the individual-response level.
+
+| Area | Change |
+|---|---|
+| Full raw replies | Every refusal probe row now writes the complete cleaned reply, prompt, expected behavior, grade, flags, preset, and response metadata to a local `results/raw/` JSONL file. |
+| Compact public records | Dashboard records retain the short `reply_preview` and link to the local raw-output file rather than embedding long replies. |
+| Safe redirection grading | `refuse_or_safe_redirect` now requires an actual refusal prefix or a recognized safe-redirection cue; length and required terms alone no longer pass it. |
+| External review | Added a reusable prompt for another LLM to audit the original dataset together with the raw-output JSONL row by row. |
+| Privacy | Raw outputs remain under ignored `results/` and are excluded from public archives. |
+| Tests | Added regression coverage for refusal/safe-redirection detection and full raw-reply preservation. |
+
+## 1.11.6 — 2026-08-18
+
+This patch makes the dashboard understandable as a decision tool rather than a long technical report.
+
+| Area | Change |
+|---|---|
+| Dashboard navigation | Added primary tabs for Overview, Sampler tuning, Refusal & companion, NIAH long context, and Technical details. |
+| Plain-language summary | Added a first-screen explanation of what sampler and probe results answer, plus score interpretation guidance. |
+| Refusal analysis | Added a preset-level automated-agreement headline, track comparison chart, score bars, auto-scored counts, manual-review counts, errors, and visible investigation signals. |
+| Correct review handling | Dashboard aggregation now excludes `manual_review` probe rows from the refusal headline score while keeping their counts and rows visible. |
+| Result separation | Sampler recommendations, refusal results, and NIAH results are now visibly separated in both the per-model dashboard and multi-model comparison. |
+| Compatibility maintenance | Replaced stale duplicated legacy launchers with current delegates and added non-interactive `--help` support for the additional-benchmark configuration and runner. |
+| Tests | Added regression coverage proving manual-review rows cannot inflate or distort automated refusal summaries. |
+
 ## 1.11.5 — 2026-08-18
 
 This release supports expanded refusal datasets while keeping normal runs quick.

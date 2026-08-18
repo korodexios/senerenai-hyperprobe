@@ -1,12 +1,13 @@
 """Standalone long-context needle-in-a-haystack diagnostic probe."""
 from __future__ import annotations
 
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from common import append_jsonl, build_run_manifest, extract_clean_reply, fingerprint, param_hash, run_batch
-from probe_utils import mean, new_probe_id, save_probe_summary
+from common import append_jsonl, build_run_manifest, extract_clean_reply, fingerprint, param_hash, run_batch, utc_now
+from probe_utils import build_probe_run_statistics, mean, new_probe_id, print_probe_run_statistics, save_probe_summary
 
 DEFAULT_CONTEXT_SIZES = (4000, 16000, 32000)
 DEFAULT_DEPTHS = (10, 50, 90)
@@ -96,6 +97,8 @@ def run_niah_probe(
     enable_thinking: bool = False,
 ) -> dict:
     """Run compact NIAH exact-retrieval diagnostics separate from the sampler pipeline."""
+    started_at = utc_now()
+    started_monotonic = time.monotonic()
     source_path = Path(corpus_path)
     if not source_path.exists():
         raise FileNotFoundError(f"NIAH corpus not found: {source_path}")
@@ -153,6 +156,7 @@ def run_niah_probe(
             "depth_percent": case["depth_percent"],
             "estimated_input_tokens": case["estimated_input_tokens"],
             "server_prompt_tokens": result.get("prompt_tokens"),
+            "prompt_tokens_reported": bool(result.get("prompt_tokens_reported", False)),
             "params": row["params"],
             "param_hash": row.get("param_hash") or param_hash(row["params"]),
             "preset_label": row["preset_label"],
@@ -161,6 +165,7 @@ def run_niah_probe(
             "grade": grade,
             "elapsed": round(row["elapsed"], 2),
             "completion_tokens": result.get("tokens", 0),
+            "completion_tokens_reported": bool(result.get("completion_tokens_reported", False)),
             "response_model": result.get("response_model", model),
             "finish_reason": result.get("finish_reason"),
             "reply_preview": reply[:300].replace("\n", " "),
@@ -168,6 +173,20 @@ def run_niah_probe(
     by_preset = {
         label: {key: mean(values) for key, values in results.items()}
         for label, results in scores_by_preset_size_depth.items()
+    }
+    finished_at = utc_now()
+    run_statistics = build_probe_run_statistics(
+        rows,
+        started_at=started_at,
+        finished_at=finished_at,
+        wall_elapsed_seconds=time.monotonic() - started_monotonic,
+    )
+    estimated_input_total = sum(int(row["case"]["estimated_input_tokens"]) for row in rows)
+    run_statistics["estimated_input_tokens"] = {
+        "status": "character_based_estimate",
+        "total": estimated_input_total,
+        "characters_per_token_estimate": CHARACTERS_PER_TOKEN_ESTIMATE,
+        "note": "This is a corpus-character estimate, not server tokenizer telemetry.",
     }
     manifest = build_run_manifest(
         stage="probe_niah", profile="long_context", model=model, prompts=case_rows,
@@ -184,6 +203,7 @@ def run_niah_probe(
         },
         "matrix": {"context_sizes": list(context_sizes), "depths": list(depths), "samples": samples},
         "presets": preset_rows,
+        "run_statistics": run_statistics,
         "summary": {
             "attempted_calls": len(jobs),
             "successful_calls": len(jobs) - failure_count,
@@ -195,4 +215,7 @@ def run_niah_probe(
     save_probe_summary("niah", model, probe_id, summary)
     for label, scores in by_preset.items():
         print(f"  {label}: " + " | ".join(f"{case}={score:.2f}" for case, score in sorted(scores.items())))
+    print_probe_run_statistics("NIAH LONG-CONTEXT BENCHMARK", run_statistics)
+    estimate = run_statistics["estimated_input_tokens"]
+    print(f"  Estimated constructed input: {estimate['total']:,} tokens ({estimate['note']})")
     return summary
