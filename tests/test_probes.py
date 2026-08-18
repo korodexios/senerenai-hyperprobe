@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import probe_utils
@@ -10,6 +12,12 @@ from probe_niah import build_niah_case, grade_niah_response, normalize_corpus
 from probe_refusal import grade_refusal_response, load_refusal_dataset
 from probe_utils import BASELINE_PRESET, select_presets
 import visualizer
+
+WIZARD_PATH = Path(__file__).resolve().parents[1] / "03_configure_additional_benchmarks.py"
+WIZARD_SPEC = importlib.util.spec_from_file_location("additional_benchmark_wizard", WIZARD_PATH)
+additional_wizard = importlib.util.module_from_spec(WIZARD_SPEC)
+assert WIZARD_SPEC.loader is not None
+WIZARD_SPEC.loader.exec_module(additional_wizard)
 
 
 class ProbeTests(unittest.TestCase):
@@ -50,6 +58,16 @@ class ProbeTests(unittest.TestCase):
             final = select_presets("final", profile="roleplay", model="demo")
         probe_utils.RESULTS_DIR = original_results
         self.assertEqual(final[0]["benchmark_id"], "fixture")
+
+    def test_number_first_wizard_keeps_or_changes_preset_with_enter_or_one_digit(self):
+        with patch("builtins.input", return_value=""):
+            self.assertEqual(additional_wizard.choose_preset("compare"), "compare")
+        with patch("builtins.input", return_value="4"):
+            self.assertEqual(additional_wizard.choose_preset("compare"), "mini-sweep")
+
+    def test_wizard_discovers_the_public_refusal_dataset(self):
+        choices = [additional_wizard.relative_to_project(path) for path in additional_wizard.discover_refusal_datasets()]
+        self.assertIn("datasets/refusal/refusal_safe_v1.jsonl", choices)
 
     def test_refusal_runner_writes_isolated_probe_records_with_mocked_responses(self):
         import probe_refusal

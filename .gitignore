@@ -46,8 +46,9 @@ wheels/
 *.whl
 MANIFEST
 
-# Senerenai-HyperProbe-generated benchmark output
+# Senerenai-HyperProbe-generated benchmark output and private local datasets
 results/
+datasets/local/
 *.log
 
 # Editor and IDE metadata
@@ -72,5 +73,3 @@ Desktop.ini
 *.temp
 tmp/
 temp/
-
-datasets/refusal/my_refusal_v1.jsonl

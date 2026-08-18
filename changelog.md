@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.11.4 — 2026-08-18
+
+This maintenance release makes the additional-benchmark wizard faster to use from a keyboard.
+
+| Area | Change |
+|---|---|
+| Number-first controls | Preset, profile, language, dataset, common NIAH matrix, samples, timeout, thinking mode, and dashboard behavior now use numbered choices with Enter-preserving defaults. |
+| Dataset discovery | The wizard automatically lists public refusal JSONL files and private `datasets/local/` JSONL files as numbered choices. |
+| Advanced-only typing | Custom paths, custom matrices, custom counts, custom timeout, and manual sampler JSON remain available only as explicit advanced choices. |
+| Git privacy | Added `datasets/local/` to `.gitignore` for private user-provided datasets. |
+
 ## 1.11.3 — 2026-08-18
 
 This maintenance release clarifies the public workflow terminology for first-time users.

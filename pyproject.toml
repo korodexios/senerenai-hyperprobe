@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "senerenai-hyperprobe"
-version = "1.11.3"
+version = "1.11.4"
 description = "Interpretable LLM sampling benchmark and tuner for OpenAI-compatible APIs"
 readme = "readme.md"
 requires-python = ">=3.10"

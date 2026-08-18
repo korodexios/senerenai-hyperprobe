@@ -161,14 +161,16 @@ Run the additional-benchmark configuration wizard once:
 python3 03_configure_additional_benchmarks.py
 ```
 
+The wizard is deliberately **number-first**. For normal use, press **Enter** to keep a saved choice or press **one number** to change it. Typing is only needed for a brand-new corpus path, an unusual custom dataset path, a custom NIAH matrix, or an advanced manual sampler JSON.
+
 The wizard lets you choose:
 
 | Setting | Meaning |
 |---|---|
-| Diagnostic modes | `refusal`, `niah`, or `both`. |
-| Preset mode | `baseline`, `final`, `compare`, `mini-sweep`, or `manual`. |
-| Final-preset profile | Which Stage 3 profile supplies the final preset, such as `roleplay`, `creative`, or `coding`. |
-| Refusal dataset | Default public JSONL dataset or a compatible custom JSONL file. |
+| Additional benchmark modes | `refusal`, `niah`, or `both`. |
+| Preset mode | Numbered choices for `baseline`, `final`, `compare`, `mini-sweep`, or `manual`. `compare` is the recommended default. |
+| Final-preset profile | Numbered choice for the Stage 3 profile supplying the final preset, such as `roleplay`, `creative`, or `coding`. It is skipped for `baseline` and `manual` modes. |
+| Refusal dataset | A numbered list of discovered public and `datasets/local/` JSONL files; a typed path is only an advanced fallback. |
 | NIAH corpus | One large UTF-8 text file from which the probe creates its own cases. |
 | Context sizes | Target context lengths, for example `4000,16000,32000`. |
 | Needle depths | Positions such as `10,50,90` percent. |
@@ -197,6 +199,8 @@ python3 04_probe.py        # redirects to 04_run_additional_benchmarks.py
 ```
 
 ## Additional benchmark A: refusal and companion behavior
+
+The setup wizard automatically discovers `.jsonl` files in both `datasets/refusal/` and `datasets/local/`, then presents them as numbered choices. For a private file such as `datasets/local/my_refusal_v1.jsonl`, simply press its displayed number; do not type its name unless you are using an unusual external path.
 
 The default refusal dataset is:
 
@@ -228,7 +232,7 @@ To add a custom compatible dataset, create a JSONL file with one JSON object per
 }
 ```
 
-The easiest way to select a custom dataset is to run `03_configure_additional_benchmarks.py` again and enter its path. The advanced one-run alternative is:
+The easiest way to select a custom dataset is to run `03_configure_additional_benchmarks.py` again and press its displayed number. The advanced one-run alternative is:
 
 ```bash
 python3 03_probe.py \
