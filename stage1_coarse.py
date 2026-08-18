@@ -242,6 +242,9 @@ def run_stage1(
                 "sample_idx": row["sample_idx"],
                 "grade": {"weighted_score": round(score, 4), "dimensions": dimensions, "flags": flags},
                 "elapsed": round(row["elapsed"], 2),
+                "completion_tokens": result.get("tokens", 0),
+                "response_model": result.get("response_model", model),
+                "finish_reason": result.get("finish_reason"),
                 "reply_preview": reply[:300].replace("\n", " "),
             },
         )
@@ -281,7 +284,9 @@ def run_stage1(
                 "param_hash": ph, "params": params, "design_role": row["design_role"],
                 "sample_idx": row["sample_idx"],
                 "grade": {"weighted_score": round(score, 4), "dimensions": dimensions, "flags": flags},
-                "elapsed": round(row["elapsed"], 2), "reply_preview": reply[:300].replace("\\n", " "),
+                "elapsed": round(row["elapsed"], 2), "completion_tokens": result.get("tokens", 0),
+                "response_model": result.get("response_model", model), "finish_reason": result.get("finish_reason"),
+                "reply_preview": reply[:300].replace("\\n", " "),
             })
         main_effects, sensitivity, interaction_evidence, combo_stats = analyze_screening(combos, scores_by_hash)
 

@@ -2,12 +2,12 @@ cff-version: 1.5.0
 message: "If Senerenai-HyperProbe contributes to your work, please cite this repository."
 title: "Senerenai-HyperProbe: Interpretable LLM Sampling Benchmark and Tuner"
 type: software
-version: 1.10.0
-date-released: 2026-08-16
+version: 1.11.3
+date-released: 2026-08-18
 abstract: >-
   A lightweight, provider-neutral benchmark and tuner for sampling parameters
   of large language models exposed through OpenAI-compatible APIs, using an
-  quality-first main-effect, targeted-interaction, holdout-validation, and stability workflow with strict cross-stage search-design provenance and adaptive confirmation of informative Stage 1 candidates.
+  quality-first main-effect, targeted-interaction, holdout-validation, and stability workflow with strict cross-stage search-design provenance and adaptive confirmation of informative Stage 1 candidates, plus optional refusal/companion and long-context retrieval diagnostics.
 repository-code: "https://github.com/korodexios/senerenai-hyperprobe"
 license: MIT
 keywords:
@@ -18,6 +18,8 @@ keywords:
   - multilingual
   - openai-compatible
   - python
+  - long-context
+  - refusal-evaluation
 authors:
   - family-names: "Senerenai-HyperProbe contributors"
     given-names: ""

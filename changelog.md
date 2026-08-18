@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.11.3 — 2026-08-18
+
+This maintenance release clarifies the public workflow terminology for first-time users.
+
+| Area | Change |
+|---|---|
+| Main workflow | Renamed the recommended public entry points to `01_configure_sampler_benchmark.py` and `02_run_sampler_benchmark.py`. |
+| Additional workflows | Renamed the refusal/NIAH entry points to `03_configure_additional_benchmarks.py` and `04_run_additional_benchmarks.py`. |
+| Documentation | Replaced the potentially confusing public word `diagnostics` with `additional benchmarks`; technical diagnostic descriptions remain where they are useful. |
+| Compatibility | Existing entry points remain available for older scripts and users. |
+
+## 1.11.2 — 2026-08-18
+
+This maintenance release makes the public workflow clearer for first-time users.
+
+| Area | Change |
+|---|---|
+| Entry points | Added descriptive names: `01_configure_benchmark.py`, `02_run_benchmark.py`, `03_configure_diagnostics.py`, and `04_run_diagnostics.py`. |
+| Compatibility | The older `01_setup.py`, `02_run.py`, `03_probe_setup.py`, and `04_probe.py` commands remain available for existing scripts and imports. |
+| Documentation | Reorganized the README so the beginner quick start, configuration, zero-prompt execution, optional probes, and override commands appear before methodology and technical details. |
+
+## 1.11.1 — 2026-08-18
+
+This maintenance release adds persistent optional-probe settings and a zero-prompt runner.
+
+| Area | Change |
+|---|---|
+| Probe setup | Added `03_probe_setup.py` to save enabled modes, dataset/corpus paths, preset source, matrix, sample counts, timeout, thinking mode, and dashboard behavior. |
+| Zero-prompt execution | Added `04_probe.py`; after setup, optional probes run without command-line tags or further questions. |
+| Safety | The dedicated local probe settings file is ignored by Git and relative dataset/corpus paths resolve from the project directory. |
+
+## 1.11.0 — 2026-08-18
+
+This feature release adds optional diagnostic probes without changing the efficient Stage 1 → Stage 2 → Stage 3 sampler-tuning workflow.
+
+| Area | Change |
+|---|---|
+| Optional launcher | Added `03_probe.py`, which reuses saved API, model, runtime, thinking, backend, and sampler settings while keeping probe execution separate from the main tuner. |
+| Preset reuse | Supports `baseline`, `final`, `compare`, `mini-sweep`, and explicit `manual` preset modes. The default comparison is baseline plus a selected saved Stage 3 final preset. |
+| Refusal diagnostic | Added a public deterministic dataset with benign-boundary, consent-aware adult companion-roleplay, and safe-redirection tracks. It records transparent answerability/false-refusal signals without explicit sexual content or operationally harmful instructions. |
+| Long context | Added deterministic NIAH exact-retrieval probing. One user-supplied UTF-8 corpus is sliced automatically, a unique needle is inserted at controlled depths, and exact retrieval is scored separately for each preset. |
+| Result isolation | Probe JSONL records, immutable summaries, and dashboard rows are separated from Stage 1–3 recommendations. Probe scores never affect final sampler presets. |
+| Telemetry | Records server-reported input token usage when available and otherwise clearly marks NIAH sizing as a character-based estimate. |
+| Tests | Added offline coverage for public refusal dataset validation, false-refusal flagging, NIAH case construction/scoring, preset loading, and dashboard isolation. |
+| Zero-prompt probes | Added `03_probe_setup.py` for persistent refusal/NIAH settings and `04_probe.py` for running all enabled probes without command-line tags. |
+
+## 1.10.1 — 2026-08-18
+
+This maintenance release improves reproducibility and diagnostics without expanding the universal four-parameter tuning space.
+
+| Area | Change |
+|---|---|
+| Backend provenance | Added an optional human-readable backend label, a privacy-preserving endpoint fingerprint, declared sampler capabilities, and an explicit provider-defined sampler-order note to run manifests. |
+| Capability safety | A requested known sampling parameter that is excluded by declared capabilities now produces a visible configuration error instead of being silently dropped from an API request. |
+| JSONL diagnostics | New records retain backend provenance, completion-token count, returned response model, and finish reason when supplied by the provider. |
+| Dashboard | Shows backend and declared sampler information for new records; uses readable benchmark-chain labels rather than opaque run hashes; completes English-only labels and repairs degeneration-rate bars. |
+| Benchmark chains | Stage 1, Stage 2, Stage 3, and final preset archives preserve a shared benchmark ID while latest pointers support zero-prompt sequential continuation. |
+| Tests | Added regression coverage for backend settings, capability validation, manifest privacy/provenance, visible parameter-rejection errors, and dashboard provenance rendering. |
+
 ## 1.10.0 — 2026-08-16
 
 This release keeps the broad 33-combination Stage 1 design but avoids spending a second sample on every combination. All combinations receive one screening sample; when Stage 1 samples are set to 2, only the baseline and eight strongest first-pass combinations receive confirmation. The Stage 2 and Stage 3 narrowing strategy is unchanged, while total runtime is substantially reduced for multi-profile runs.

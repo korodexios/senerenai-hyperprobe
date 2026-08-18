@@ -12,7 +12,7 @@ from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent
 SETTINGS_PATH = Path(os.getenv("HYPERPROBE_SETTINGS_FILE", ROOT_DIR / "hyperprobe.local.json"))
-SETTINGS_SCHEMA_VERSION = 1
+SETTINGS_SCHEMA_VERSION = 2
 PROFILE_CHOICES = ("coding", "agent_tools", "creative", "roleplay", "custom_lang")
 LANGUAGE_CHOICES = (
     ("en", "English"), ("zh", "Mandarin Chinese"), ("hi", "Hindi"), ("es", "Spanish"),
@@ -23,6 +23,11 @@ LANGUAGE_CHOICES = (
 )
 LANGUAGE_CODES = tuple(code for code, _ in LANGUAGE_CHOICES)
 LANGUAGE_ALIASES = {"cz": "cs", "cn": "zh", "jp": "ja", "kr": "ko"}
+SAMPLER_CAPABILITY_CHOICES = (
+    "temperature", "min_p", "top_p", "top_k", "repetition_penalty",
+    "presence_penalty", "frequency_penalty",
+)
+CORE_SAMPLER_CAPABILITIES = ("temperature", "min_p", "top_p", "repetition_penalty")
 
 
 def normalize_language_code(value: str) -> str:
@@ -35,6 +40,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "api_base": "http://localhost:8080/v1",
     "api_key": "Bearer llama.cpp",
     "model": "",
+    "backend_label": "",
+    "sampler_capabilities": list(CORE_SAMPLER_CAPABILITIES),
     "timeout": 180,
     "concurrency": 1,
     "max_tokens": 2048,
@@ -70,6 +77,14 @@ def _merged_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         languages = [item.strip().lower() for item in legacy_language.split(",") if item.strip()]
     merged["default_languages"] = [normalize_language_code(str(code)) for code in languages if normalize_language_code(str(code)) in LANGUAGE_CODES]
     merged["default_language"] = merged["default_languages"][0] if len(merged["default_languages"]) == 1 else ""
+    raw_capabilities = merged.get("sampler_capabilities", CORE_SAMPLER_CAPABILITIES)
+    if isinstance(raw_capabilities, str):
+        raw_capabilities = [item.strip() for item in raw_capabilities.split(",")]
+    merged["sampler_capabilities"] = [
+        str(item).strip() for item in raw_capabilities
+        if str(item).strip() in SAMPLER_CAPABILITY_CHOICES
+    ] or list(CORE_SAMPLER_CAPABILITIES)
+    merged["backend_label"] = str(merged.get("backend_label", "")).strip()
     return merged
 
 
@@ -96,6 +111,14 @@ def validate_settings(settings: dict[str, Any]) -> list[str]:
         errors.append("default_languages must contain only supported language codes")
     if settings.get("default_workflow") not in {"stage1", "stage2", "stage3", "full", "dashboard"}:
         errors.append("default_workflow must be stage1, stage2, stage3, full, or dashboard")
+    backend_label = str(settings.get("backend_label", ""))
+    if len(backend_label) > 120:
+        errors.append("backend_label must be at most 120 characters")
+    capabilities = settings.get("sampler_capabilities", [])
+    if not isinstance(capabilities, list) or any(item not in SAMPLER_CAPABILITY_CHOICES for item in capabilities):
+        errors.append("sampler_capabilities must contain only supported parameter names")
+    elif not set(CORE_SAMPLER_CAPABILITIES).issubset(capabilities):
+        errors.append("sampler_capabilities must include the four core benchmark parameters")
     return errors
 
 
@@ -155,6 +178,8 @@ def settings_environment(settings: dict[str, Any]) -> dict[str, str]:
         "HYPERPROBE_CONCURRENCY": str(settings["concurrency"]),
         "HYPERPROBE_MAX_TOKENS": str(settings["max_tokens"]),
         "HYPERPROBE_RETRY": "1" if settings.get("retry", True) else "0",
+        "HYPERPROBE_BACKEND_LABEL": str(settings.get("backend_label", "")),
+        "HYPERPROBE_SAMPLER_CAPABILITIES": ",".join(settings.get("sampler_capabilities", CORE_SAMPLER_CAPABILITIES)),
     }
     env.update(values)
     return env

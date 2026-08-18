@@ -1,4 +1,3 @@
-"""Offline visualizer tests using in-memory benchmark records."""
 from __future__ import annotations
 
 import tempfile
@@ -15,7 +14,12 @@ class VisualizerTests(unittest.TestCase):
             {"model": "fixture-model"},
         ]
         grouped = visualizer.group_by_model(records)
-        self.assertEqual(set(grouped), {"fixture-model [hybrid_v1]", "fixture-model [legacy]"})
+        self.assertEqual(set(grouped), {"fixture-model [Earlier benchmark]", "fixture-model [Older results]"})
+
+    def test_single_result_set_uses_clean_model_label(self):
+        records = [{"model": "fixture-model", "search_design": "hybrid_v5"}]
+        grouped = visualizer.group_by_model(records)
+        self.assertEqual(set(grouped), {"fixture-model"})
 
     def test_failed_records_do_not_contaminate_rankings(self):
         records = [
@@ -35,10 +39,13 @@ class VisualizerTests(unittest.TestCase):
         self.assertEqual(analysis["failed_records_by_run"]["failed-run"], 1)
         self.assertNotIn("bad", analysis["hash_params"])
 
-    def test_dashboard_renders_run_quality_and_multilingual_panels(self):
+    def test_dashboard_renders_readable_chain_and_backend_provenance(self):
         records = [
             {
-                "run_id": "fixture-run-001",
+                "run_id": "fixture-stage1-run",
+                "benchmark_id": "fixture-benchmark",
+                "backend_label": "llama.cpp fixture",
+                "declared_sampler_capabilities": ["temperature", "min_p", "top_p", "repetition_penalty"],
                 "phase": "stage1",
                 "profile": "custom_lang",
                 "model": "fixture-model",
@@ -50,8 +57,11 @@ class VisualizerTests(unittest.TestCase):
                 "grade": {"weighted_score": 0.82, "dimensions": {"language_quality": 1.0}, "flags": []},
             },
             {
-                "run_id": "fixture-run-001",
-                "phase": "stage1",
+                "run_id": "fixture-stage2-run",
+                "benchmark_id": "fixture-benchmark",
+                "backend_label": "llama.cpp fixture",
+                "declared_sampler_capabilities": ["temperature", "min_p", "top_p", "repetition_penalty"],
+                "phase": "stage2",
                 "profile": "custom_lang",
                 "model": "fixture-model",
                 "language": "zh",
@@ -73,8 +83,12 @@ class VisualizerTests(unittest.TestCase):
         self.assertIn("Run quality and coverage", html)
         self.assertIn("Multilingual coverage", html)
         self.assertIn("Average latency", html)
+        self.assertIn("Benchmark run 1", html)
+        self.assertIn("llama.cpp fixture", html)
+        self.assertIn("Declared samplers", html)
         self.assertIn("<pre>", html)
 
 
 if __name__ == "__main__":
     unittest.main()
+

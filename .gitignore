@@ -18,6 +18,7 @@ ENV/
 !.env.example
 hyperprobe.local.json
 hyperprobe.local.*.json
+hyperprobe.probes.local.json
 .secrets/
 secrets/
 *.secret
@@ -71,3 +72,5 @@ Desktop.ini
 *.temp
 tmp/
 temp/
+
+datasets/refusal/my_refusal_v1.jsonl

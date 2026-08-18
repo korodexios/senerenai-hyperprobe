@@ -26,6 +26,12 @@ RETRY_DELAY = float(os.getenv("HYPERPROBE_RETRY_DELAY", "3"))
 MAX_CONCURRENT_REQUESTS = int(_setting("HYPERPROBE_CONCURRENCY", "concurrency", 1))
 MAX_TOKENS = int(_setting("HYPERPROBE_MAX_TOKENS", "max_tokens", 2048))
 ENABLE_THINKING = bool(_LOCAL_SETTINGS.get("thinking", False))
+BACKEND_LABEL = str(_setting("HYPERPROBE_BACKEND_LABEL", "backend_label", "")).strip()
+_SAMPLER_CAPABILITIES_RAW = _setting("HYPERPROBE_SAMPLER_CAPABILITIES", "sampler_capabilities", "temperature,min_p,top_p,repetition_penalty")
+if isinstance(_SAMPLER_CAPABILITIES_RAW, str):
+    SAMPLER_CAPABILITIES = tuple(item.strip() for item in _SAMPLER_CAPABILITIES_RAW.split(",") if item.strip())
+else:
+    SAMPLER_CAPABILITIES = tuple(str(item).strip() for item in _SAMPLER_CAPABILITIES_RAW if str(item).strip())
 
 BIG_FOUR = ("temperature", "min_p", "top_p", "repetition_penalty")
 

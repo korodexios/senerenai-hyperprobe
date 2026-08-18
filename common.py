@@ -17,6 +17,8 @@ from urllib.request import Request, urlopen
 from config import (
     API_BASE,
     API_KEY,
+    BACKEND_LABEL,
+    SAMPLER_CAPABILITIES,
     DEFAULT_TIMEOUT,
     MAX_CONCURRENT_REQUESTS,
     MAX_TOKENS,
@@ -24,7 +26,7 @@ from config import (
     RETRY_ON_ERROR,
 )
 
-PROJECT_SCHEMA_VERSION = "1.1"
+PROJECT_SCHEMA_VERSION = "1.3"
 ROOT_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = ROOT_DIR / "results"
 STAGES_DIR = RESULTS_DIR / "stages"
@@ -88,6 +90,10 @@ def build_run_manifest(
         "parameter_combinations": parameter_combinations,
         "max_tokens": MAX_TOKENS,
         "thinking_enabled": enable_thinking,
+        "backend_label": BACKEND_LABEL or "unspecified",
+        "endpoint_fingerprint": fingerprint({"api_base": API_BASE}),
+        "declared_sampler_capabilities": list(SAMPLER_CAPABILITIES),
+        "sampler_order": "provider-defined; not inferred by HyperProbe",
     }
 
 
@@ -112,7 +118,14 @@ def call_model(
         "temperature", "min_p", "top_p", "top_k", "repetition_penalty",
         "presence_penalty", "frequency_penalty",
     }
-    payload.update({key: params[key] for key in params if key in supported_parameters})
+    requested_parameters = {key for key in params if key in supported_parameters}
+    unsupported = sorted(requested_parameters - set(SAMPLER_CAPABILITIES))
+    if unsupported:
+        return {
+            "error": "Configured sampler capabilities exclude requested parameter(s): " + ", ".join(unsupported),
+            "unsupported_parameters": unsupported,
+        }
+    payload.update({key: params[key] for key in params if key in requested_parameters})
     if enable_thinking:
         payload["chat_template_kwargs"] = {"enable_thinking": True}
 
@@ -129,9 +142,13 @@ def call_model(
         with urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
         message = data["choices"][0].get("message", {})
+        choice = data["choices"][0]
         return {
             "reply": message.get("content", "") or "",
             "tokens": data.get("usage", {}).get("completion_tokens", 0),
+            "prompt_tokens": data.get("usage", {}).get("prompt_tokens"),
+            "response_model": data.get("model", model),
+            "finish_reason": choice.get("finish_reason"),
         }
     except HTTPError as exc:
         error = f"HTTP {exc.code}: {exc.read().decode(errors='replace')[:300]}"
@@ -342,6 +359,9 @@ def append_jsonl(phase_name: str, profile: str, model: str, record: dict) -> Non
         "phase": phase_name,
         "profile": profile,
         "model": model,
+        "backend_label": BACKEND_LABEL or "unspecified",
+        "endpoint_fingerprint": fingerprint({"api_base": API_BASE}),
+        "declared_sampler_capabilities": list(SAMPLER_CAPABILITIES),
     }
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, ensure_ascii=False) + "\n")

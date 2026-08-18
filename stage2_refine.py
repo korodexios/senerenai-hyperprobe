@@ -273,6 +273,9 @@ def run_stage2(
                 "sample_idx": row["sample_idx"],
                 "grade": {"weighted_score": round(score, 4), "dimensions": dimensions, "flags": flags},
                 "elapsed": round(row["elapsed"], 2),
+                "completion_tokens": result.get("tokens", 0),
+                "response_model": result.get("response_model", model),
+                "finish_reason": result.get("finish_reason"),
                 "reply_preview": reply[:300].replace("\n", " "),
             },
         )

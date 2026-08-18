@@ -167,6 +167,9 @@ def run_stage3(profile: str, model: str, top_from_stage2: list[dict],
             "params": params, "sample_idx": row["sample_idx"],
             "grade": {"weighted_score": round(score, 4), "dimensions": dims, "flags": flags},
             "elapsed": round(row["elapsed"], 2),
+            "completion_tokens": res.get("tokens", 0),
+            "response_model": res.get("response_model", model),
+            "finish_reason": res.get("finish_reason"),
             "reply_preview": reply[:300].replace("\n", " "),
         })
 

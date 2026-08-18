@@ -222,7 +222,7 @@ def show_summary(settings: dict[str, Any]) -> None:
     print("\nSaved workflow defaults")
     print(f"  API base:     {settings['api_base']}")
     print(f"  API key:      {mask_secret(str(settings.get('api_key', '')))}")
-    print(f"  Model:        {settings.get('model') or '(choose in 02_run.py)'}")
+    print(f"  Model:        {settings.get('model') or '(choose in 02_run_benchmark.py)'}")
     print(f"  Backend:      {settings.get('backend_label') or 'unspecified (recommended: set server and version)'}")
     print(f"  Samplers:     {', '.join(settings.get('sampler_capabilities', []))}")
     print(f"  Profiles:     {', '.join(settings['default_profiles'])}")
@@ -243,14 +243,14 @@ def interactive_setup(*, force_edit: bool = False) -> None:
     existing = SETTINGS_PATH.exists()
     settings = load_settings()
     print("=" * 72)
-    print("Senerenai-HyperProbe 01_setup.py — persistent local setup")
+    print("Senerenai-HyperProbe 01_configure_benchmark.py — persistent local setup")
     print("Saved values are shown first. Press Enter to keep them.")
     print("=" * 72)
     if existing and not force_edit:
         show_summary(settings)
         choice = input("\nPress Enter to keep all settings and exit, or type edit to change them: ").strip().lower()
         if choice != "edit":
-            print("Settings unchanged. Run `python3 02_run.py` when you are ready to benchmark.")
+            print("Settings unchanged. Run `python3 02_run_benchmark.py` when you are ready to benchmark.")
             return
 
     settings["api_base"] = ask_text("api_base", "OpenAI-compatible API base", str(settings["api_base"]), "Server root before /models and /chat/completions; normally ends in /v1.").rstrip("/")
@@ -284,7 +284,7 @@ def interactive_setup(*, force_edit: bool = False) -> None:
     save_settings(settings)
     show_summary(settings)
     print(f"\nSaved to {SETTINGS_PATH}")
-    print("Next: run `python3 02_run.py` to select profiles and launch a stage or the full pipeline.")
+    print("Next: run `python3 02_run_benchmark.py` to select profiles and launch a stage or the full pipeline.")
 
 
 def main() -> None:
@@ -299,7 +299,7 @@ def main() -> None:
         return
     if args.reset:
         save_settings(dict(DEFAULT_SETTINGS))
-        print(f"Reset local settings at {SETTINGS_PATH}. Run `python3 01_setup.py --edit` to configure them.")
+        print(f"Reset local settings at {SETTINGS_PATH}. Run `python3 01_configure_benchmark.py --edit` to configure them.")
         return
     interactive_setup(force_edit=args.edit)
 

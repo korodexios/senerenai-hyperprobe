@@ -15,9 +15,10 @@ DASH_DIR = RESULTS_DIR / "dashboards"
 DASH_DIR.mkdir(parents=True, exist_ok=True)
 
 DEGEN_FLAG_PREFIXES = ("ngram5_loop", "ngram8_loop", "repeated_lines", "low_unique_ratio")
-PROF_ICONS = {"coding": "💻", "creative": "🎨", "roleplay": "🎭", "custom_lang": "🇸🇰"}
+PROF_ICONS = {"coding": "💻", "creative": "🎨", "roleplay": "🎭", "custom_lang": "🇸🇰", "safety_refusal": "🛡️", "long_context": "🧵"}
 PHASE_LABELS = {
-    "stage1": "🔎 Stage1 (coarse)", "stage2": "🔬 Stage2 (refined)", "stage3": "🎯 Stage3 (finest)",
+    "stage1": "🔎 Stage 1 (screening)", "stage2": "🔬 Stage 2 (refinement)", "stage3": "🎯 Stage 3 (stability)",
+    "probe_refusal": "🛡️ Refusal & companion probe", "probe_niah": "🧵 Long-context NIAH probe",
     "quickscan": "⚡ Quickscan (legacy)", "sweep": "🧪 Sweep (legacy)", "focused": "🎯 Focused (legacy)",
 }
 
@@ -74,6 +75,10 @@ def load_all_data() -> list[dict]:
 
 def benchmark_variant(record: dict) -> str:
     """Return a human-friendly label while keeping internal variants separate."""
+    # Optional diagnostics are rendered in their own dashboard section and belong
+    # beside the current tuner results, not in an opaque legacy-style bucket.
+    if str(record.get("phase", "")).startswith("probe_"):
+        return "Current benchmark"
     internal = str(record.get("search_design") or "legacy")
     labels = {
         "legacy": "Older results",
@@ -137,6 +142,9 @@ def run_deep_analysis(records: list[dict]) -> dict:
     combo_degen_examples = defaultdict(list)
 
     phases_seen = set()
+    backend_labels = set()
+    declared_capabilities = set()
+    probe_scores = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 
     for r in records:
         if "grade" not in r:
@@ -151,6 +159,8 @@ def run_deep_analysis(records: list[dict]) -> dict:
         prompt_id = r.get("prompt_id", "unknown")
         flags = r["grade"].get("flags", [])
         language = r.get("language")
+        backend_labels.add(str(r.get("backend_label", "legacy/unspecified")))
+        declared_capabilities.update(str(item) for item in r.get("declared_sampler_capabilities", []) if item)
         run_id = r.get("run_id", "legacy-record")
         run_key = r.get("benchmark_id") or run_id
         if run_key not in run_details:
@@ -187,6 +197,10 @@ def run_deep_analysis(records: list[dict]) -> dict:
         for d_name, d_val in dims.items():
             by_prof_hash_dims[prof][ph][d_name].append(d_val)
 
+        if phase.startswith("probe_"):
+            probe_scores[phase][r.get("preset_label", "unspecified")][r.get("track", "overall")].append(score)
+            continue
+
         flag_names = [f.split(":")[0] for f in flags]
         for p_name, p_val in params.items():
             param_impact[p_name][p_val].append(score)
@@ -219,6 +233,9 @@ def run_deep_analysis(records: list[dict]) -> dict:
         "combo_degen_total": combo_degen_total,
         "combo_degen_examples": combo_degen_examples,
         "phases_seen": phases_seen,
+        "backend_labels": backend_labels,
+        "declared_capabilities": declared_capabilities,
+        "probe_scores": probe_scores,
     }
 
 
@@ -230,11 +247,18 @@ def generate_specialized_presets(analysis: dict) -> list[dict]:
 
     pooled_scores = defaultdict(lambda: defaultdict(list))   # prof -> ph -> [scores]
     pooled_elapsed = defaultdict(lambda: defaultdict(list))
+    core_profiles = {"coding", "agent_tools", "creative", "roleplay", "custom_lang"}
     for phase in bphs:
+        if phase.startswith("probe_"):
+            continue
         for prof in bphs[phase]:
+            if prof not in core_profiles:
+                continue
             for ph, scores in bphs[phase][prof].items():
                 pooled_scores[prof][ph].extend(scores)
         for prof in bphe.get(phase, {}):
+            if prof not in core_profiles:
+                continue
             for ph, times in bphe[phase][prof].items():
                 pooled_elapsed[prof][ph].extend(times)
 
@@ -453,6 +477,9 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
     run_record_counts = analysis["run_record_counts"]
     failed_records_by_run = analysis["failed_records_by_run"]
     run_details = analysis["run_details"]
+    backend_labels = sorted(analysis["backend_labels"])
+    declared_capabilities = sorted(analysis["declared_capabilities"])
+    probe_scores = analysis["probe_scores"]
 
     profiles_present = sorted({p for phase in bphs for p in bphs[phase]})
     phases_present = sorted(analysis["phases_seen"],
@@ -512,6 +539,8 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
         <span class="badge" style="background:var(--card); border: 1px solid var(--border);">⏱️ Total time: {total_time_formatted}</span>
         <span class="badge" style="background:var(--card); border: 1px solid var(--border);">Average latency: {avg_latency}s</span>
         <span class="badge" style="background:var(--card); border: 1px solid var(--border);">Stages: {", ".join(phases_present) or "—"}</span>
+        <span class="badge" style="background:var(--card); border: 1px solid var(--border);">Backend: {escape(', '.join(backend_labels) or 'legacy/unspecified')}</span>
+        <span class="badge" style="background:var(--card); border: 1px solid var(--border);">Declared samplers: {escape(', '.join(declared_capabilities) or 'not recorded')}</span>
     </div>
 </div>
 <div class="container">
@@ -581,9 +610,18 @@ def generate_model_dashboard(model: str, records: list[dict]) -> Path:
             html.append('</tbody></table><div class="empty-note">Language rows are descriptive diagnostics, not cross-language quality rankings. Different scripts and prompt targets have different difficulty profiles.</div></div>')
         html.append('</div>')
 
+    if probe_scores:
+        html.append('<div class="section-title">🧪 Optional diagnostic probes</div><div class="card"><div class="empty-note">Probe results are reported separately and never alter Stage 1–3 sampling recommendations.</div><table><thead><tr><th>Probe</th><th>Preset</th><th>Track</th><th>Mean score</th><th>Samples</th></tr></thead><tbody>')
+        for probe_phase, presets_by_probe in sorted(probe_scores.items()):
+            for preset_label, tracks in sorted(presets_by_probe.items()):
+                for track, scores in sorted(tracks.items()):
+                    stats = calculate_stats(scores)
+                    html.append(f'<tr><td>{escape(PHASE_LABELS.get(probe_phase, probe_phase))}</td><td>{escape(str(preset_label))}</td><td>{escape(str(track))}</td><td><b>{stats["mean"]:.4f}</b></td><td>{stats["n"]}</td></tr>')
+        html.append('</tbody></table></div>')
+
     # ── winners per profile (pooled across phases, quick glance) ──
     html.append('<div style="margin-bottom:10px;font-weight:bold;color:var(--text-muted);">🏆 BEST PRESET FOR EACH PROFILE (across all stages):</div><div class="grid-4">')
-    for prof in profiles_present:
+    for prof in [p for p in profiles_present if p in {"coding", "agent_tools", "creative", "roleplay", "custom_lang"}]:
         pooled = defaultdict(list)
         for phase in bphs:
             for ph, scores in bphs[phase].get(prof, {}).items():

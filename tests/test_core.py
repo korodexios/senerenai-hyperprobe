@@ -5,6 +5,7 @@ import unittest
 
 from common import (
     build_run_manifest,
+    call_model,
     extract_clean_reply,
     format_duration,
     prompt_bank_fingerprint,
@@ -108,9 +109,27 @@ class CoreTests(unittest.TestCase):
             stage="stage1", profile="coding", model="demo", prompts=[{"id": "p"}],
             samples=2, enable_thinking=False, parameter_combinations=12,
         )
-        self.assertEqual(manifest["schema_version"], "1.1")
+        self.assertEqual(manifest["schema_version"], "1.3")
         self.assertEqual(manifest["prompt_count"], 1)
+        self.assertEqual(manifest["sampler_order"], "provider-defined; not inferred by HyperProbe")
+        self.assertIn("declared_sampler_capabilities", manifest)
+        self.assertIn("endpoint_fingerprint", manifest)
         self.assertNotIn("api_key", manifest)
+        self.assertNotIn("api_base", manifest)
+
+    def test_declared_sampler_capabilities_reject_silent_parameter_omission(self):
+        import common
+        original = common.SAMPLER_CAPABILITIES
+        common.SAMPLER_CAPABILITIES = ("temperature", "top_p", "repetition_penalty")
+        try:
+            result = call_model(
+                "demo", {"temperature": 0.6, "min_p": 0.05, "top_p": 0.9, "repetition_penalty": 1.05},
+                {"prompt": "reply"}, allow_retry=False,
+            )
+        finally:
+            common.SAMPLER_CAPABILITIES = original
+        self.assertIn("error", result)
+        self.assertIn("min_p", result["error"])
 
     def test_stage_handoff_validation_rejects_mismatch(self):
         payload = {"_meta": {"stage": "stage1", "profile": "coding", "model": "demo"}, "top_combos": []}
